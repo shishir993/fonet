@@ -13,11 +13,13 @@
 
 #define logdbg(M, ...)  fprintf(stdout, "[DEBUG] " M "\n", ##__VA_ARGS__)
 
-#define logerr(M, ...)  fprintf(stdout, "[ERROR] (%s:%d: errno: %s) " M "\n", __FILE__, __LINE__, clean_errno(), ##__VA_ARGS__)
+#define logerr(M, ...)  fprintf(stdout, "[ERROR] (errno: %s) " M "\n", clean_errno(), ##__VA_ARGS__)
 
 #define logwarn(M, ...) fprintf(stdout, "[WARN]  " M "\n", ##__VA_ARGS__)
 
 #define loginfo(M, ...) fprintf(stdout, "[INFO]  " M "\n", ##__VA_ARGS__)
+
+#define DBG_MEMSET(mem, size) ( memset(mem, 0xCC, size) )
 
 #else
 #define logdbg(x, ...)

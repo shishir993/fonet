@@ -1,6 +1,9 @@
 #ifndef _PACKET_H
 #define _PACKET_H
 
+#include <stdint.h>
+#include <sys/time.h>
+#include "defs.h"
 #include "cutils.h"
 
 // message types
@@ -46,7 +49,32 @@ struct _srbuffer {
 }SR_BUFFER;
 
 
-// Packet
+// Handshake structure
+typedef struct _handshake {
+    uint32_t u32Challenge;
+    uint32_t u32Response;
+}HANDSHAKE;
+
+
+// 
+typedef struct _loginCred {
+    char szUsername[MAX_USERNAME+1];
+    BYTE abPassword[CRYPT_HASH_SIZE_BYTES];
+}LOGIN_CRED;
+
+
+typedef struct _servSessionKey {
+    BYTE abKey[CRYPT_KEY_SIZE_BYTES];
+}SERV_SKEY;
+
+
+// Unique data that is the access_token
+// This MUST be encrypted and a hmac value must be
+// tagged along with this to detect tampering.
+typedef struct _anUniqData {
+    BYTE abHmacCSIP[CRYPT_HASH_SIZE_BYTES];
+    struct timeval tvGenerated;
+}AN_UNIQDATA;
 
 
 #endif // _PACKET_H

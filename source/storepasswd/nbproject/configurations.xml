@@ -4,27 +4,17 @@
     <logicalFolder name="HeaderFiles"
                    displayName="Header Files"
                    projectFiles="true">
-      <itemPath>aninclude.h</itemPath>
       <itemPath>../common/assert.h</itemPath>
-      <itemPath>clihandler.h</itemPath>
       <itemPath>../common/cutils.h</itemPath>
       <itemPath>../common/defs.h</itemPath>
-      <itemPath>../common/helpers.h</itemPath>
-      <itemPath>../common/packet.h</itemPath>
-      <itemPath>../common/packet_exchange.h</itemPath>
-      <itemPath>scomm.h</itemPath>
       <itemPath>../common/sdbg.h</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>../common/assert.c</itemPath>
-      <itemPath>clihandler.c</itemPath>
       <itemPath>../common/cutils.c</itemPath>
-      <itemPath>../common/helpers.c</itemPath>
       <itemPath>main.c</itemPath>
-      <itemPath>../common/packet_exchange.c</itemPath>
-      <itemPath>scomm.c</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
                    displayName="Test Files"
@@ -53,7 +43,7 @@
           </preprocessorList>
         </cTool>
         <linkerTool>
-          <commandLine>`libgcrypt-config --libs` -lpthread</commandLine>
+          <commandLine>`libgcrypt-config --libs`</commandLine>
         </linkerTool>
       </compileType>
       <item path="../common/assert.c" ex="false" tool="0" flavor2="0">
@@ -66,29 +56,9 @@
       </item>
       <item path="../common/defs.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="../common/helpers.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="../common/helpers.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="../common/packet.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="../common/packet_exchange.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="../common/packet_exchange.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="../common/sdbg.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="aninclude.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="clihandler.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="clihandler.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="main.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="scomm.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="scomm.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
     <conf name="Release" type="1">
@@ -111,7 +81,7 @@
           <developmentMode>5</developmentMode>
         </asmTool>
         <linkerTool>
-          <commandLine>`libgcrypt-config --libs` -lpthread</commandLine>
+          <commandLine>`libgcrypt-config --libs`</commandLine>
         </linkerTool>
       </compileType>
       <item path="../common/assert.c" ex="false" tool="0" flavor2="0">
@@ -124,29 +94,9 @@
       </item>
       <item path="../common/defs.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="../common/helpers.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="../common/helpers.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="../common/packet.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="../common/packet_exchange.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="../common/packet_exchange.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="../common/sdbg.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="aninclude.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="clihandler.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="clihandler.h" ex="false" tool="3" flavor2="0">
-      </item>
       <item path="main.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="scomm.c" ex="false" tool="0" flavor2="0">
-      </item>
-      <item path="scomm.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
   </confs>

@@ -1,133 +1,118 @@
-/* 
- * File:   main.c
- * Author: shishir
- *
- * Created on April 16, 2013, 5:22 PM
- */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include "../common/defs.h"
-#include "../common/cutils.h"
-#include "../common/helpers.h"
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<unistd.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<arpa/inet.h>
+#include<netdb.h>
 
-BOOL fUnitTests();
-
-/**
- * 
- * @param argc
- * @param argv
- * @return 
- */
-int main(int argc, char** argv)
+int main(int argc, char *argv[])
 {
-    
-    if(!fUnitTests())
-        return 1;
-    
-    return (EXIT_SUCCESS);
+	if (argc != 2)
+	{
+		printf("Please enter the port number first");
+	return 0;	
+	}
+	in_port_t PORT = atoi(argv[1]);
+	fd_set master;// master file descriptor list
+	fd_set read_fds;// temp file descriptor list for select()
+	int fdmax;// maximum file descriptor number
+	int listener;// listening socket descriptor
+	int newfd;// newly accept()ed socket descriptor
+	struct sockaddr_in remoteaddr; // client address	
+	socklen_t addrlen;
+	char buf[256];
+	int nbytes;// buffer for client data
+	char remoteIP[INET6_ADDRSTRLEN];
+	int yes=1;
+	int i, j, rv;
+	struct sockaddr_in servaddr;// for setsockopt() SO_REUSEADDR, below
+	FD_ZERO(&master);// clear the master and temp sets
+	FD_ZERO(&read_fds);// get us a socket and bind it
+	listener=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
+	if(listener<0)
+		printf("socket() failed");
+	memset(&servaddr, 0, sizeof (servaddr));
+	servaddr.sin_family=AF_INET;
+	servaddr.sin_addr.s_addr=htonl(INADDR_ANY);
+	servaddr.sin_port=htons(PORT);
+	if(bind(listener,(struct sockaddr*) &servaddr,sizeof(servaddr)) < 0) 
+	{
+		printf("bind failed");
+	}
+	if (listen(listener, 10) == -1)
+	{
+		printf("listen() failed");
+	}
+	FD_SET(listener, &master);// add the listener to the master set
+	fdmax = listener; //keep track of the biggest file descriptor so far, it's this one		
+	// main loop
+	for(;;) 
+	{
+		read_fds = master; // copy it
+	if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
+		{
+		printf("select() failed");
+		}
+	// run through the existing connections looking for data to read
+	for(i = 0; i <= fdmax; i++)
+	{
+		if (FD_ISSET(i, &read_fds)) 
+			{ // we got one!!
+				if (i == listener)
+					{
+					// handle new connections
+					addrlen = sizeof (remoteaddr);
+					newfd = accept(listener,(struct sockaddr *)&remoteaddr,&addrlen);
+					if (newfd == -1) 
+						{
+							perror("accept");
+						} 
+					else
+						{
+							FD_SET(newfd, &master); // add to master set
+						if (newfd > fdmax) {
+							// keep track of the max
+							fdmax = newfd;
+									}
+						}
+						} 
+					else {
+					// handle data from a client
+				if ((nbytes = recv(i, buf, sizeof(buf), 0)) <= 0) {
+				// got error or connection closed by client
+			if (nbytes == 0) {
+			// connection closed
+				printf("selectserver: socket %d hung up\n", i);
+			} 
+			else {
+				perror("recv");
+			}
+			close(i); // bye!
+			FD_CLR(i, &master); // remove from master set
+			}
+			 else
+			 {
+			puts(buf);
+			// we got some data from a client
+			for(j = 0; j <= fdmax; j++) {
+			// send to everyone!
+				if (FD_ISSET(j, &master)) {
+			// except the listener and ourselves
+			if (j != listener && j != i) {
+						if (send(j, buf, nbytes, 0) == -1) {
+							perror("send");
+						}
+					}
+				}
+			}
+		}
+	} // END handle data from client
+	} // END got new incoming connection
+} // END looping through file descriptors
+} // END for(;;)--and you thought it would never end!
+return 0;
 }
-
-
-BOOL fUnitTests()
-{
-    
-    fInitGCrypt();
-    
-    // test sizes
-    {
-        int in, out, reqsize;
-
-        in = 64;
-        out = 64;
-        if(fIsBufSizeEnough(in,out,&reqsize))
-            printf("Enough: %d %d %d\n", in, out, reqsize);
-        else
-            printf("NOT Enough: %d %d %d\n", in, out, reqsize);
-
-        in = 20;
-        out = 20;
-        if(fIsBufSizeEnough(in,out,&reqsize))
-            printf("Enough: %d %d %d\n", in, out, reqsize);
-        else
-            printf("NOT Enough: %d %d %d\n", in, out, reqsize);
-
-        in = 13;
-        out = 13;
-        if(fIsBufSizeEnough(in,out,&reqsize))
-            printf("Enough: %d %d %d\n", in, out, reqsize);
-        else
-            printf("NOT Enough: %d %d %d\n", in, out, reqsize);
-
-        in = 70;
-        out = 70;
-        if(fIsBufSizeEnough(in,out,&reqsize))
-            printf("Enough: %d %d %d\n", in, out, reqsize);
-        else
-            printf("NOT Enough: %d %d %d\n", in, out, reqsize);
-
-        in = 4;
-        out = 4;
-        if(fIsBufSizeEnough(in,out,&reqsize))
-            printf("Enough: %d %d %d\n", in, out, reqsize);
-        else
-            printf("NOT Enough: %d %d %d\n", in, out, reqsize);
-    }
-    
-    // test encryption
-    char szMessage[] = "this is plaintext";
-    char szKey[MAX_PASSWD+1];
-    BYTE abCipher[32];
-    
-    char abDecrypted[32];
-    
-    AES_ENCDATA aesData;
-    AES_DECDATA aesDecData;
-    
-    void *pvPadded = NULL;
-    int nPaddedSize = 0;
-    
-    memset(szKey, 0, sizeof(szKey));
-    printf("Enter the key: ");
-    scanf("%s", szKey);
-    
-    if(!fConvertStrToKey(szKey, strlen(szKey), aesData.abKey, sizeof(aesData.abKey)))
-        return FALSE;
-    
-    if(!fPadInput(szMessage, strlen(szMessage)+1, &pvPadded, &nPaddedSize, NULL))
-        return FALSE;
-    
-    aesData.pvInputBuf = pvPadded;
-    aesData.nInputSize = nPaddedSize;
-    aesData.pvOutputBuf = abCipher;
-    aesData.nOutputSize = sizeof(abCipher);
-    
-    if(!fAESEncrypt(&aesData))
-        return FALSE;
-    
-    free(pvPadded);
-    pvPadded = NULL;
-    
-    logdbg("Ciphertext: ");
-    vPrintBytes(aesData.pvOutputBuf, aesData.nOutputSize);
-    
-    // decrypt
-    memcpy(aesDecData.abCounter, aesData.abCounter, sizeof(aesData.abCounter));
-    memcpy(aesDecData.abKey, aesData.abKey, sizeof(aesData.abKey));
-    //aesDecData.nActualPlainTextSize = strlen(szMessage)+1;
-    aesDecData.pvInputBuf = aesData.pvOutputBuf;
-    aesDecData.nInputSize = sizeof(abCipher);
-    aesDecData.pvOutputBuf = abDecrypted;
-    aesDecData.nOutputSize = sizeof(abDecrypted);
-    if(!fAESDecrypt(&aesDecData))
-        return FALSE;
-    
-    logdbg("Plaintext: ");
-    vPrintBytes(abDecrypted, sizeof(abDecrypted));
-    printf("%s", abDecrypted);
-    
-    // check if encrypt and decrypt was fine
-    
-    return TRUE;
-    
-}// fUnitTests()

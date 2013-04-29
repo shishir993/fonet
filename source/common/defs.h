@@ -8,10 +8,14 @@
 #define FALSE	0
 
 // MAX string values
-#define MAX_PATH    255
-#define MAX_PASSWD   31
+#define MAX_PATH        255
+#define MAX_PASSWD      31
+#define MAX_USERNAME    31
+
+#define MAX_SHARED_KEYS 32
 
 // time values
+#define TIME_ONE_SEC            1
 #define TIME_TWO_SEC            2
 #define TIME_THREE_SEC          3
 #define TIME_QUAR_SEC_MICRO     250000
@@ -30,12 +34,15 @@
 #define ERR_IN_SIZE     123     // input size is invalid
 #define ERR_HASHGEN     124     // error generating hash
 
-#define SERVER_PORT		34678
+#define MAX_BACKLOG     10
 
 #define SR_BUFSIZE      512     // socket send/receive buffer size
 
+// macros
+#define nelems_array(x) (sizeof(x)/sizeof(x[0]))
 
-//
+
+// user typedefs
 typedef int BOOL;
 typedef unsigned char BYTE;
 

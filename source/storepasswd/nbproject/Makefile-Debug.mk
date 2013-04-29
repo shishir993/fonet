@@ -37,11 +37,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 OBJECTFILES= \
 	${OBJECTDIR}/_ext/1270477542/assert.o \
 	${OBJECTDIR}/_ext/1270477542/cutils.o \
-	${OBJECTDIR}/_ext/1270477542/helpers.o \
-	${OBJECTDIR}/_ext/1270477542/packet_exchange.o \
-	${OBJECTDIR}/clihandler.o \
-	${OBJECTDIR}/main.o \
-	${OBJECTDIR}/scomm.o
+	${OBJECTDIR}/main.o
 
 
 # C Compiler Flags
@@ -62,11 +58,11 @@ LDLIBSOPTIONS=
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
-	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/accessnode
+	"${MAKE}"  -f nbproject/Makefile-${CND_CONF}.mk ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/storepasswd
 
-${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/accessnode: ${OBJECTFILES}
+${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/storepasswd: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
-	${LINK.c} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/accessnode ${OBJECTFILES} ${LDLIBSOPTIONS} `libgcrypt-config --libs` -lpthread
+	${LINK.c} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/storepasswd ${OBJECTFILES} ${LDLIBSOPTIONS} `libgcrypt-config --libs`
 
 ${OBJECTDIR}/_ext/1270477542/assert.o: ../common/assert.c 
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
@@ -78,30 +74,10 @@ ${OBJECTDIR}/_ext/1270477542/cutils.o: ../common/cutils.c
 	${RM} $@.d
 	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/cutils.o ../common/cutils.c
 
-${OBJECTDIR}/_ext/1270477542/helpers.o: ../common/helpers.c 
-	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
-	${RM} $@.d
-	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/helpers.o ../common/helpers.c
-
-${OBJECTDIR}/_ext/1270477542/packet_exchange.o: ../common/packet_exchange.c 
-	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
-	${RM} $@.d
-	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/packet_exchange.o ../common/packet_exchange.c
-
-${OBJECTDIR}/clihandler.o: clihandler.c 
-	${MKDIR} -p ${OBJECTDIR}
-	${RM} $@.d
-	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/clihandler.o clihandler.c
-
 ${OBJECTDIR}/main.o: main.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
 	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.c
-
-${OBJECTDIR}/scomm.o: scomm.c 
-	${MKDIR} -p ${OBJECTDIR}
-	${RM} $@.d
-	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/scomm.o scomm.c
 
 # Subprojects
 .build-subprojects:
@@ -109,7 +85,7 @@ ${OBJECTDIR}/scomm.o: scomm.c
 # Clean Targets
 .clean-conf: ${CLEAN_SUBPROJECTS}
 	${RM} -r ${CND_BUILDDIR}/${CND_CONF}
-	${RM} ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/accessnode
+	${RM} ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/storepasswd
 
 # Subprojects
 .clean-subprojects:

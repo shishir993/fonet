@@ -129,6 +129,38 @@ BOOL fConvertStrToKey(const char *pszStr, int nLen, BYTE *pbKeyOut, int nSizeOut
 
 
 /**
+ * 
+ * @param pszPass
+ * @param nPassLen
+ * @param pbSaltOut
+ * @param saltOutSize
+ * @param pbKeyOut
+ * @param keyOutSize
+ * @return 
+ */
+BOOL fPassphraseToKey(const char *pszPass, int nPassLen, 
+        BYTE *pbSaltOut, int saltOutSize,
+        BYTE *pbKeyOut, int keyOutSize)
+{
+    ASSERT(pszPass && nPassLen > 0);
+    ASSERT(pbSaltOut && saltOutSize == CRYPT_SALT_SIZE_BYTES);
+    ASSERT(pbKeyOut && keyOutSize == CRYPT_KEY_SIZE_BYTES);
+    
+    gcry_error_t gcError = GPG_ERR_NO_ERROR;
+
+    gcry_create_nonce(pbSaltOut, CRYPT_SALT_SIZE_BYTES);
+
+    if ((gcError = gcry_kdf_derive(pszPass, nPassLen, CRYPT_ALG_KDF, CRYPT_ALG_HASH,
+            pbSaltOut, CRYPT_SALT_SIZE_BYTES, CRYPT_KDF_ITRS,
+            CRYPT_KEY_SIZE_BYTES, pbKeyOut)) != GPG_ERR_NO_ERROR) 
+    {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+
+/**
  * Generates a counter value of the required size to be used in CTR mode of encryption.
  * 
  * @param pvCtrBuffer Pointer to buffer where the output counter value will be stored
@@ -210,6 +242,8 @@ BOOL fPadInput(void *pvInput, int nInSize,
     if((pvNewBuf = malloc(nBufSize)) == NULL)
     {
         if(pierr) *pierr = ERR_NO_MEM;
+        *ppvPaddedBuf = NULL;
+        *pnPaddedBufSize = 0;
         return FALSE;
     }
     
@@ -252,6 +286,7 @@ BOOL fSecureAlloc(int sizeBytes, void **ppvAllocated)
 }// fSecureAlloc
 
 
+
 /********************
  * SHA256 Functions * 
  ********************/
@@ -277,13 +312,14 @@ BOOL fGetHash(const void *pvInputData, int nInputSize,
 
 
 /**
- * 
- * @param pbKey
- * @param nKeySize
- * @param pvInputData
- * @param nInputSize
- * @param pbOutBuf
- * @param nOutBufSize
+ * Generates a keyed-hash Message Authentication Code from the given input data
+ * and key.
+ * @param pbKey Pointer to the key
+ * @param nKeySize Size in bytes of key. Must be 32 bytes for SHA256
+ * @param pvInputData Pointer to input data
+ * @param nInputSize Size of input data in bytes
+ * @param pbOutBuf Pointer to output buffer
+ * @param nOutBufSize Size of output buffer. Must be 32 bytes for SHA256
  * @param pierr
  * @return 
  */
@@ -333,10 +369,13 @@ static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,
     }
     
     // set key if HMAC is required
-    if( (gcError = gcry_md_setkey(pSHA256Handle, pbKey, CRYPT_KEY_SIZE_BYTES)) != GPG_ERR_NO_ERROR )
+    if(fHMACEnable)
     {
-        logerr("fGetHash(): Error setting key for SHA256: %d\n", gcError);
-        goto fend;
+        if( (gcError = gcry_md_setkey(pSHA256Handle, pbKey, CRYPT_KEY_SIZE_BYTES)) != GPG_ERR_NO_ERROR )
+        {
+            logerr("fGetHash(): Error setting key for SHA256: %d\n", gcError);
+            goto fend;
+        }
     }
 
 
@@ -390,6 +429,7 @@ static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,
 BOOL fAESEncrypt(AES_ENCDATA *pAESData)
 {
     ASSERT(pAESData);
+    ASSERT(pAESData->pbKey && pAESData->nKeySize == CRYPT_KEY_SIZE_BYTES);
     ASSERT(pAESData->pvInputBuf && pAESData->nInputSize > 0);
     ASSERT(pAESData->pvOutputBuf && pAESData->nOutputSize > 0);
     
@@ -422,8 +462,8 @@ BOOL fAESEncrypt(AES_ENCDATA *pAESData)
 
     // set the key
     logdbg("Using key: ");
-    vPrintBytes(pAESData->abKey, sizeof(pAESData->abKey));
-    if((gcError = gcry_cipher_setkey(pAESHandle, pAESData->abKey, sizeof(pAESData->abKey)))
+    vPrintBytes(pAESData->pbKey, CRYPT_KEY_SIZE_BYTES);
+    if((gcError = gcry_cipher_setkey(pAESHandle, pAESData->pbKey, CRYPT_KEY_SIZE_BYTES))
             != GPG_ERR_NO_ERROR)
     {
         logerr("fAESEncrypt(): Error setting key to be used");
@@ -504,8 +544,8 @@ BOOL fAESDecrypt(AES_DECDATA *pAESData)
 
     // set the key
     logdbg("Using key: ");
-    vPrintBytes(pAESData->abKey, sizeof(pAESData->abKey));
-    if((gcError = gcry_cipher_setkey(pAESHandle, pAESData->abKey, sizeof(pAESData->abKey)))
+    vPrintBytes(pAESData->pbKey, CRYPT_KEY_SIZE_BYTES);
+    if((gcError = gcry_cipher_setkey(pAESHandle, pAESData->pbKey, CRYPT_KEY_SIZE_BYTES))
             != GPG_ERR_NO_ERROR)
     {
         logerr("fAESDecrypt(): Error setting key to be used");

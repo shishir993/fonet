@@ -24,6 +24,6 @@ BOOL PE_fSendPacket(int iSockID, void *pvPacket, int nSize, int *piReturnVal);
 
 BOOL PE_fRecvPacket(int iSockID, void *pvPacketBuf, int nSize, int *piReturnVal);
 
-//BOOL PE_fTestSockRead(int iSockID, int iTimeoutSec, int iTimeoutMicroSec, int *piRetVal);
+BOOL PE_fTestSockRead(int iSockID, int iTimeoutSec, int iTimeoutMicroSec, int *piRetVal);
 
 #endif // _SDHANDLER_H
