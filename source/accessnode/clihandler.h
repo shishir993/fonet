@@ -19,7 +19,8 @@
 #define CHS_TERMINATE       14
 
 
-BOOL fStartClientListen(pthread_t *ptid);
+BOOL fStartClientListen(int *piCliSocket);
+BOOL fCliCommHandler(int iCliSocket);
 //void *pvClientListenThread(void *pvArg);
 //
 //BOOL fStartClientHandler(int iCliSocket, struct in_addr *pCliAddr);

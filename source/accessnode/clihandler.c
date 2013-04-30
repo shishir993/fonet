@@ -3,6 +3,10 @@
 
 
 extern int g_nListenPort;
+extern SHARED_KEY  *g_pCliSharedKey;    // to store client-accessnode shared keys
+extern BYTE *g_pbCliHMACKey;            // hmac key for client: hash(cli shared key)
+
+static BOOL fCliHandshake(int iCliSocket);
 
 /**
  * 
@@ -65,7 +69,7 @@ BOOL fStartClientListen(int *piCliSocket)
     while(1)
     {
         FD_ZERO(&readfds);
-        FD_SET(lg_iListenSocket, &readfds);
+        FD_SET(iListenSocket, &readfds);
 
         // set timeout as half a second
         tvTimeout.tv_sec = 0;
@@ -107,6 +111,99 @@ BOOL fStartClientListen(int *piCliSocket)
     return FALSE;
     
 }// fStartClientListen()
+
+
+BOOL fCliCommHandler(int iCliSocket)
+{
+    ASSERT(iCliSocket > 0);
+    ASSERT(g_pCliSharedKey && g_pbCliHMACKey);
+    
+    // first, handshake
+    
+    
+    fend:
+    return;
+}
+
+
+static BOOL fCliHandshake(int iCliSocket)
+{
+    int iRetVal = 0;
+    HELLO_PACKET helloPacket;
+    HANDSHAKE handShake;
+    uint32_t myNonce = 0;
+    
+    void *pvSendPacket = NULL;
+    int nSendPacketSize = 0;
+    
+    
+    // wait for hello
+    loginfo("Waiting for hello from client...");
+    while(1)
+    {
+        if(!PE_fRecvPacket(iCliSocket, &helloPacket, sizeof(helloPacket), &iRetVal))
+        {
+            if(iRetVal == ERR_SOCKET_DOWN)
+                loginfo("Client closed socket unexpectedly!");
+            else
+                loginfo("Read from client socket error (%s)", strerror(iRetVal));
+            goto error_return;
+        }
+        
+        if(helloPacket.mid == MSG_CA_HELLO)
+            break;
+        
+        loginfo("Invalid message ID from client: %d", helloPacket.mid);
+        loginfo("Continuing wait for hello message...");
+    }
+    
+    // send challenge
+    gcry_create_nonce(&myNonce, sizeof(uint32_t));
+    logdbg("Sending challenge: %u", myNonce);
+    
+    handShake.u32Challenge = myNonce;
+    handShake.u32Response = 0;
+    
+    if((pvSendPacket = pvCreatePacket(MSG_AC_CHALLENGE, &handShake, sizeof(handShake),
+            g_pCliSharedKey->abKey, sizeof(g_pCliSharedKey->abKey),
+            g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES,
+            &nSendPacketSize)) == NULL )
+    {
+        logwarn("Unable to create handshake packet!");
+        goto error_return;
+    }
+    
+    if(!PE_fSendPacket(iCliSocket, pvSendPacket, nSendPacketSize, &iRetVal))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            loginfo("Client closed socket unexpectedly!");
+        else
+            loginfo("Failed to send handshake packet (%s)", strerror(iRetVal));
+        goto error_return;
+    }
+    
+    // wait for response
+    memset(pvSendPacket, 0, nSendPacketSize);
+    while(1)
+    {
+        loginfo("Waiting for response to challenge");
+        if(!PE_fRecvPacket(iCliSocket, pvSendPacket, nSendPacketSize, &iRetVal))
+        {
+            if(iRetVal == ERR_SOCKET_DOWN)
+                loginfo("Client closed socket unexpectedly!");
+            else
+                loginfo("Failed to receive handshake packet (%s)", strerror(iRetVal));
+            goto error_return;
+        }
+    }
+    
+    // decrypt packet
+    
+    
+    error_return:
+    return FALSE;
+    
+}// fCliHandshake()
 
 
 /**

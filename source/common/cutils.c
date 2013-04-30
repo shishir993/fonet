@@ -4,6 +4,10 @@
 #include "cutils.h"
 
 
+static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,
+        const void *pvInputData, int nInputSize, BYTE *pbOutBuf, int *pierr);
+
+
 /**
  * Checks for correct version of Libgrcypt and initializes it. 
  * Also initializes a secure memory area of size 32678 bytes (32kB).
@@ -126,6 +130,27 @@ BOOL fConvertStrToKey(const char *pszStr, int nLen, BYTE *pbKeyOut, int nSizeOut
     return fGetHash(pszStr, nLen, pbKeyOut, nSizeOut, NULL);
     
 }// fConvertStrToKey()
+
+
+BYTE* pbGenHMACKey(BYTE *pbInputKey, int nInputKeySize)
+{
+    ASSERT(pbInputKey && nInputKeySize == CRYPT_KEY_SIZE_BYTES);
+    
+    void *pvSecMem = NULL;
+    
+    if(!fSecureAlloc(CRYPT_KEY_SIZE_BYTES, &pvSecMem))
+    { logerr("fGenHMACKey(): Could not allocate secure memory"); return NULL; }
+    
+    if(!fGetHash(pbInputKey, CRYPT_KEY_SIZE_BYTES, 
+            pvSecMem, CRYPT_KEY_SIZE_BYTES, NULL))
+    {
+        vSecureFree(pvSecMem);
+        return NULL;
+    }
+    
+    return (BYTE*)pvSecMem;
+
+}
 
 
 /**

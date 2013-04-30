@@ -279,37 +279,41 @@ void* pvCreatePacket(int mid, void *pMessageContents, int mcSize,
 }// vGeneratePacket()
 
 
-BOOL fPasswdIntoHashTable(HTABLE *pht, const char *pszFilepath, int *pierr)
+BOOL fGetMIDMsgContents(BYTE *pbDecryptKey, BYTE *pbHMACKey,
+        void *pvPacket, int nPacketSize, 
+        int *piMID, int *pnMCSize, void **ppvMessageContents)
 {
-    ASSERT(pht && pszFilepath);
+    ASSERT(pbDecryptKey && pbHMACKey);
+    ASSERT(pvPacket && nPacketSize > 0);
+    ASSERT(piMID && pnMCSize && ppvMessageContents);
     
-    int fd = -1;
-    USER_PASSWD upData;
-    ssize_t uBytesRead = 0;
     
-    int nRecord = 0;
+    BYTE *pbCounter;
+    int *piSize;
+    void *pvCipherText;
     
-    if((fd = open(pszFilepath, O_RDONLY, 0)) == -1)
+    pbCounter = (BYTE*)pvPacket;
+    piSize = (int*)(pvPacket+CRYPT_CTR_SIZE_BYTES);
+    pvCipherText = pvPacket + CRYPT_CTR_SIZE_BYTES + sizeof(int);
+    
+    if(!fIsPacketNotTampered(pvPacket, nPacketSize, pbHMACKey))
     {
-        logerr("Could not open file %s ", pszFilepath);
+        logwarn("Packet was tampered in transit!");
         return FALSE;
     }
     
-    while((uBytesRead = read(fd, &upData, sizeof(USER_PASSWD))) == sizeof(USER_PASSWD))
-    {
-        // insert into hashtable
-//        if(!HT_fInsert_UV(pht, ))
-//#ifdef _DEBUG
-//        printf("Record %d\n", nRecord++);
-//        printf("Username: %s\n", upData.szUsername);
-//        printf("Salt    : ");
-//        vPrintBytes(upData.abSalt, CRYPT_SALT_SIZE_BYTES);
-//        printf("Hashed  : ");
-//        vPrintBytes(upData.abPasswd, CRYPT_HASH_SIZE_BYTES);
-//#endif
-//        DBG_MEMSET(&upData, sizeof(USER_PASSWD));
-    }
-    
     return FALSE;
+}// fGetMIDMsgContents
+
+
+BOOL fIsPacketNotTampered(void *pvPacket, int nPacketSize, 
+        BYTE *pbHMACKey)
+{
+    ASSERT(pvPacket && nPacketSize > CRYPT_HASH_SIZE_BYTES);
     
-}// fPasswdIntoHashTable()
+    return fCheckIntegrity(pbHMACKey, CRYPT_KEY_SIZE_BYTES,
+            pvPacket, nPacketSize-CRYPT_HASH_SIZE_BYTES,
+            pvPacket+nPacketSize-CRYPT_HASH_SIZE_BYTES,
+            CRYPT_HASH_SIZE_BYTES);
+    
+}// fIsPacketNotTampered()

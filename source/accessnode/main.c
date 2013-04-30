@@ -19,6 +19,7 @@ struct in_addr g_iaServAddr;
 char *pszServAddrStr;
 
 SHARED_KEY  *g_pCliSharedKey;    // to store client-accessnode shared keys
+BYTE *g_pbCliHMACKey;            // hmac key for client: hash(cli shared key)
 SHARED_KEY  *g_pServerSK;        // pointer to accessnode-server shared key
 BYTE *g_pbANSecretKey;
 
@@ -27,6 +28,7 @@ BYTE *g_pbANSecretKey;
 BOOL fCmdLineArgs(int nArgs, char **aszArgs);
 BOOL fLoadSharedKeys();
 void vDumpSharedKeys();
+BOOL fGenHMACKey();
 BOOL fCreateANSecretKey();
 
 
@@ -50,6 +52,12 @@ int main(int argc, char** argv)
         goto fend;
     }
     
+    if((g_pbCliHMACKey = pbGenHMACKey(g_pCliSharedKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    {
+        retVal = ERR_GEN;
+        goto fend;
+    }
+    
     if(!fCreateANSecretKey())
     {
         retVal = ERR_GEN;
@@ -58,6 +66,8 @@ int main(int argc, char** argv)
     
 #ifdef _DEBUG
     vDumpSharedKeys();
+    printf("Cli HMAC Key: ")
+    vPrintBytes(g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES);
     printf("AN Secret Key: ");
     vPrintBytes(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES);
 #endif
@@ -67,13 +77,18 @@ int main(int argc, char** argv)
         retVal = ERR_GEN;
         goto fend;
     }
-    
-    // create client listen socket
-    // wait for client's connect()
-    if(!fStartClientListen(&iCliSocket))
+
+
+    while(1)
     {
-        retVal = ERR_GEN;
-        goto fend;
+        // create client listen socket
+        // wait for client's connect()
+        if(!fStartClientListen(&iCliSocket))
+        {
+            retVal = ERR_GEN;
+            goto fend;
+        }
+        
     }
     
     // call comm_handler
@@ -82,6 +97,7 @@ int main(int argc, char** argv)
     if(g_pCliSharedKey) vSecureFree(g_pCliSharedKey);
     if(g_pServerSK) vSecureFree(g_pServerSK);
     if(g_pbANSecretKey) vSecureFree(g_pbANSecretKey);
+    if(g_pbCliHMACKey) vSecureFree(g_pbCliHMACKey);
     vServCloseSocket();
     if(iCliSocket != -1) free(iCliSocket);
     loginfo("main thread quitting...");

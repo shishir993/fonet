@@ -49,6 +49,11 @@ struct _srbuffer {
 }SR_BUFFER;
 
 
+typedef struct _helloPacket {
+    int mid;
+    char szMessage[MAX_REQ_STR+1];
+}HELLO_PACKET;
+
 // Handshake structure
 typedef struct _handshake {
     uint32_t u32Challenge;

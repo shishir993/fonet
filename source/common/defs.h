@@ -11,6 +11,7 @@
 #define MAX_PATH        255
 #define MAX_PASSWD      31
 #define MAX_USERNAME    31
+#define MAX_REQ_STR     255
 
 #define MAX_SHARED_KEYS 32
 

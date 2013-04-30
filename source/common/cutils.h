@@ -94,6 +94,7 @@ BOOL fCompareBytes(const void *pvLeft, int nLeftSize, const void *pvRight, int n
 void vPrintBytes(const void *pvData, int nSize);
 
 BOOL fConvertStrToKey(const char *pszStr, int nLen, BYTE *pbKeyOut, int nSizeOut);
+BYTE* pbGenHMACKey(BYTE *pbInputKey, int nInputKeySize);
 BOOL fPassphraseToKey(const char *pszPass, int nPassLen, 
         BYTE *pbSaltOut, int saltOutSize,
         BYTE *pbKeyOut, int keyOutSize);
@@ -111,8 +112,6 @@ BOOL fGetHMAC(const BYTE *pbKey, int nKeySize,
         BYTE *pbOutBuf, int nOutBufSize, int *pierr);
 BOOL fGetHash(const void *pvInputData, int nInputSize, 
         BYTE *pbOutBuf, int nOutBufSize, int *pierr);
-static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,
-        const void *pvInputData, int nInputSize, BYTE *pbOutBuf, int *pierr);
 
 // AES functions
 BOOL fAESEncrypt(AES_ENCDATA *pAESData);
