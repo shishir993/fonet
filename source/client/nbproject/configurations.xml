@@ -43,6 +43,9 @@
       <compileType>
         <cTool>
           <commandLine>`libgcrypt-config --cflags`</commandLine>
+          <preprocessorList>
+            <Elem>_DEBUG</Elem>
+          </preprocessorList>
         </cTool>
         <linkerTool>
           <commandLine>`libgcrypt-config --libs`</commandLine>

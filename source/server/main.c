@@ -3,194 +3,186 @@
 #include<stdlib.h>
 #include<string.h>
 #include<unistd.h>
-
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<netinet/in.h>
 #include<arpa/inet.h>
 #include<netdb.h>
 
+
+#include "../common/defs.h"
+#include "../common/packet.h"
 #include "../common/packet_exchange.h"
+#include "../common/helpers.h"
 
+SHARED_KEY  *g_pANSerSharedKey;    // to store acessnode-server server shared keys
+BYTE *g_pbANSerHMACKey; 		//hmac key for accessnode: hash(ANSer shared key)
 
-int listener;// listening socket descriptor
-int newfd;// newly accept()ed socket descriptor
+SHARED_KEY  *g_pCliSerSharedKey;    // to store client server shared keys
+BYTE *g_pbCliSerHMACKey;            // hmac key for client: hash(CliSer shared key)
+
+int listener; // listening socket descriptor
+int newfd; // newly accept()ed socket descriptor
 struct sockaddr_in remoteaddr; // client address	
 socklen_t addrlen;
 char buf[512];
-int nbytes;// buffer for client data
-char remoteIP[INET_ADDRSTRLEN];
-int yes=1;
+int nbytes; // buffer for client data
+char *AccessIP = NULL;
+int yes = 1;
 int i, j, rv;
-char sendbuffer[1024], receivebuffer[1024];
+char sendbuffer[SR_BUFSIZE], receivebuffer[SR_BUFSIZE];
 struct sockaddr_in servaddr;
+void *pASMsg;
+void *pCSMsg;
+static BYTE lg_abSRBuffer[SR_BUFSIZE];
 
 
-void socket_connection(int PORT)
-{
-    //in_port_t PORT = atoi(argv[1]);
-    // for setsockopt() SO_REUSEADDR, below
-    listener=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-	if(listener<0)
-		printf("socket() failed");
-	memset(&servaddr, 0, sizeof (servaddr));
-	servaddr.sin_family=AF_INET;
-	servaddr.sin_addr.s_addr=htonl(INADDR_ANY);
-	servaddr.sin_port=htons(PORT);
-	if(bind(listener,(struct sockaddr*) &servaddr,sizeof(servaddr)) < 0) 
-	{
-		printf("bind failed");
-	}
-        if (listen(listener, 10) == -1)
-	{
-		printf("listen() failed");
-	}
-        else 
-        {
-            printf("Waiting for connections...\n");
-        }
-        addrlen = sizeof (remoteaddr);
-	newfd = accept(listener,(struct sockaddr *)&remoteaddr,&addrlen);
-	if (newfd == -1) 
-	{
-	printf("Accept Failed");
-	} 
-        else
-        {
-            printf("Accepting connection..");
-        }
-}
+// Functions
+static BOOL fDoLoadGenKeys();
+int socket_connection(int PORT);
+void communication();
 
 
-void communication()
-{
-    while(1)
-	{
-        printf("Enter the message");
-        scanf("%s",sendbuffer);
-        PE_fSendPacket(newfd, sendbuffer, strlen(sendbuffer)+1, 0);
-
-        PE_fRecvPacket(newfd, receivebuffer, sizeof(receivebuffer), 0);
-
-        printf("MESSAGE RECEIVED:%s",receivebuffer);	
-	}
-                                                                //switch();
-}
-
-int main(int argc, char *argv[])
-{
-	if (argc != 3)
-    {
-        printf("First give port number and then the IP of the access node");
-        return 0;
+int main(int argc, char *argv[]) {
+    
+    if (argc != 2) {
+        printf("usage: %s <access_node_IP>\n", argv[0]);
+        return 1;
     }
-        int PORT = atoi(argv[1]);
-        char *AccessIP=argv[2];
-        printf("%s\n",AccessIP);
-                                                        //loadclientpassword();
-        socket_connection(PORT);
-        communication();
-        
-        
-	//in_port_t PORT = atoi(argv[1]);
-        //fd_set master;// master file descriptor list
-	//fd_set read_fds;// temp file descriptor list for select()
-	//int fdmax;// maximum file descriptor number
-	//int listener;// listening socket descriptor
-	int newfd;// newly accept()ed socket descriptor
-	/*struct sockaddr_in remoteaddr; // client address	
-	socklen_t addrlen;
-	char buf[512];
-	int nbytes;// buffer for client data
-	char remoteIP[INET6_ADDRSTRLEN];
-	int yes=1;
-	int i, j, rv;
-	struct sockaddr_in servaddr;// for setsockopt() SO_REUSEADDR, below*/
-	//FD_ZERO(&master);// clear the master and temp sets
-	//FD_ZERO(&read_fds);// get us a socket and bind it
-	/*listener=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-	if(listener<0)
-		printf("socket() failed");
-	memset(&servaddr, 0, sizeof (servaddr));
-	servaddr.sin_family=AF_INET;
-	servaddr.sin_addr.s_addr=htonl(INADDR_ANY);
-	servaddr.sin_port=htons(PORT);
-	if(bind(listener,(struct sockaddr*) &servaddr,sizeof(servaddr)) < 0) 
-	{
-		printf("bind failed");
-	}
-	if (listen(listener, 10) == -1)
-	{
-		printf("listen() failed");
-	}*/
-	/*FD_SET(listener, &master);// add the listener to the master set
-	fdmax = listener; //keep track of the biggest file descriptor so far, it's this one		
-	// main loop
-	for(;;) 
-	{
-		read_fds = master; // copy it
-	if (select(fdmax+1, &read_fds, NULL, NULL, NULL) == -1)
-		{
-		printf("select() failed");
-		}
-	// run through the existing connections looking for data to read
-	for(i = 0; i <= fdmax; i++)
-	{
-		if (FD_ISSET(i, &read_fds)) 
-			{ // we got one!!
-				if (i == listener)
-					{
-					// handle new connections
-					addrlen = sizeof (remoteaddr);
-					newfd = accept(listener,(struct sockaddr *)&remoteaddr,&addrlen);
-					if (newfd == -1) 
-						{
-							perror("accept");
-						} 
-					else
-						{
-							FD_SET(newfd, &master); // add to master set
-						if (newfd > fdmax) {
-							// keep track of the max
-							fdmax = newfd;
-									}
-						}
-						} 
-					else {
-					// handle data from a client
-                                    memset(buf, 0, sizeof(buf));
-				if ((nbytes = recv(newfd, buf, sizeof(buf), 0)) <= 0) {
-				// got error or connection closed by client
-			if (nbytes == 0) {
-			// connection closed
-				printf("selectserver: socket %d hung up\n", i);
-			} 
-			else {
-				perror("recv");
-			}
-			close(i); // bye!
-			FD_CLR(i, &master); // remove from master set
-			}
-			 else
-			 {
-			puts(buf);
-                        send(newfd,buf,sizeof(buf),0);
-			// we got some data from a client
-			//for(j = 0; j <= fdmax; j++) {
-			// send to everyone!
-			//	if (FD_ISSET(j, &master)) {
-			// except the listener and ourselves
-//			if (j != listener && j != i) {
-//						if (send(j, buf, nbytes, 0) == -1) {
-//							perror("send");
-//						}
-//					}
-//				}
-//			}
-//		}
-//	} // END handle data from client
-//	} // END got new incoming connection
-//} // END looping through file descriptors
-//} // END for(;;)--and you thought it would never end!*/
+
+    AccessIP = argv[1];
+    printf("%s\n", AccessIP);
+    
+    //loadclientpassword();
+    if(socket_connection(SERVR_LPORT) < 0)
+    {
+        loginfo("Failed to receive connect() from accessnode");
+        return 1;
+    }
+    
+    // load shared keys
+    if(!fDoLoadGenKeys())
+        return 1;
+    
+    communication();
+    
+    return 0;
+    
 }// main()
 
+
+static BOOL fDoLoadGenKeys()
+{   
+    // first, load the shared keys: anode-server key AND anode-client key
+    
+    if(!fLoadSharedKeyFile(FILE_AS_SK_BEGIN, &g_pANSerSharedKey))
+    { logwarn("Could not load AS shared key file"); goto error_return; }
+    
+    if(!fLoadSharedKeyFile(FILE_AC_SK_BEGIN, &g_pCliSerSharedKey))
+    { logwarn("Could not load AC shared key file"); goto error_return; }
+    
+    // generate HMAC keys for each
+    if((g_pbCliSerHMACKey = pbGenHMACKey(g_pCliSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    { logwarn("Could not generate client HMAC key"); goto error_return; }
+    
+    if((g_pbANSerHMACKey = pbGenHMACKey(g_pANSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    { logwarn("Could not generate server HMAC key"); goto error_return; }
+    
+    return TRUE;
+    
+    error_return:
+    if(g_pANSerSharedKey) vSecureFree(g_pANSerSharedKey);
+    if(g_pCliSerSharedKey) vSecureFree(g_pCliSerSharedKey);
+    if(g_pbCliSerHMACKey) vSecureFree(g_pbCliSerHMACKey);
+    if(g_pbANSerHMACKey) vSecureFree(g_pbANSerHMACKey);
+    return FALSE;
+
+}// fLoadSharedKeys()
+
+
+int socket_connection(int PORT) {
+    char remoteIP[INET_ADDRSTRLEN+1];
+    
+    listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (listener < 0)
+    {
+        printf("socket() failed");
+        return -1;
+    }
+    
+    memset(&servaddr, 0, sizeof (servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    servaddr.sin_port = htons(PORT);
+    if (bind(listener, (struct sockaddr*) &servaddr, sizeof (servaddr)) < 0) {
+        printf("bind failed");
+        close(listener);
+        return -1;
+    }
+    
+    if (listen(listener, 10) == -1) {
+        printf("listen() failed");
+        close(listener);
+        return -1;
+    }
+    
+    printf("Waiting for connection from %s...\n", AccessIP);
+    while(1)
+    {
+        addrlen = sizeof (remoteaddr);
+        newfd = accept(listener, (struct sockaddr *) &remoteaddr, &addrlen);
+        if (newfd == -1) {
+            printf("Accept Failed (%s)\n", strerror(errno));
+        } else {
+            if(inet_ntop(AF_INET, &remoteaddr.sin_addr, remoteIP, sizeof(remoteIP)) == NULL)
+            {
+                logerr("inet_ntop() failed ");
+                close(newfd); newfd = -1;
+            }
+            if(strcmp(remoteIP, AccessIP) != 0)
+            {
+                logwarn("Connection from unexpected IP address %s", remoteIP);
+                close(newfd); newfd = -1;
+            }
+            printf("Accepting connection from access node at %s\n", remoteIP);
+            break;
+        }
+    }
+    
+    return 0;
+    
+}// socket_connection()
+
+
+void communication() {
+    int iMIDASMsg = 0;
+    int nSizeASMsg= 0;
+    int iMIDCSMsg = 0;
+    int nSizeCSMsg= 0;
+    while (1) {
+        printf("Enter the message");
+        scanf("%s", sendbuffer);
+        PE_fSendPacket(newfd, lg_abSRBuffer, SR_BUFSIZE , 0);
+
+        PE_fRecvPacket(newfd, lg_abSRBuffer, SR_BUFSIZE , 0);
+
+        printf("MESSAGE RECEIVED:%s", lg_abSRBuffer);
+    }
+    //switch();
+    if(!fDeconstructPacket(g_pANSerSharedKey->abKey, g_pbANSerHMACKey, 
+            lg_abSRBuffer, sizeof(lg_abSRBuffer), 
+            &iMIDASMsg, &nSizeASMsg, (void**)&pASMsg))
+    {
+        logwarn("Error in decrypting packet");
+        exit(1);
+    }
+   if(!fDeconstructPacket(g_pCliSerSharedKey->abKey, g_pbCliSerHMACKey,
+           pASMsg, nSizeASMsg, 
+           &iMIDCSMsg, &nSizeCSMsg, (void**)&pCSMsg))
+    {
+        logwarn("Error in decrypting packet");
+        exit(1);
+    }
+   
+        
+}// communication()

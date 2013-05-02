@@ -26,8 +26,11 @@
         <runcommandpicklist>
           <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 45678</runcommandpicklistitem>
+          <runcommandpicklistitem>&lt;Different Values> 5555 127.0.0.1</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 5555 127.0.0.1</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 127.0.0.1</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" 45678</runcommand>
+        <runcommand>"${OUTPUT_PATH}" 127.0.0.1</runcommand>
         <rundir></rundir>
         <buildfirst>true</buildfirst>
         <terminal-type>0</terminal-type>
@@ -59,8 +62,9 @@
       <runprofile version="9">
         <runcommandpicklist>
           <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
+          <runcommandpicklistitem>&lt;Different Values> 5555 127.0.0.1</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}"</runcommand>
+        <runcommand>&lt;Different Values> 5555 127.0.0.1</runcommand>
         <rundir></rundir>
         <buildfirst>true</buildfirst>
         <terminal-type>0</terminal-type>

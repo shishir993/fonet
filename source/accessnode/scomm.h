@@ -13,8 +13,8 @@
 
 BOOL fConnectToServer();
 void vServCloseSocket();
-//BOOL fSendToServer(void *pvPacket, int nPacketSize);
-//BOOL fRecvFromServer(void *pvBuffer, int nBufSize);
+BOOL fSendToServer(void *pvPacket, int nPacketSize);
+BOOL fRecvFromServer(void *pvBuffer, int nBufSize);
 
 #endif	/* SCOMM_H */
 

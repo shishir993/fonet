@@ -354,7 +354,7 @@ BOOL fGetHMAC(const BYTE *pbKey, int nKeySize,
 {
     ASSERT(pvInputData && pbOutBuf);
     ASSERT(nInputSize > 0 && nOutBufSize == CRYPT_HASH_SIZE_BYTES);
-    ASSERT(pbKey && nKeySize == CRYPT_HASH_SIZE_BYTES);
+    ASSERT(pbKey && nKeySize == CRYPT_KEY_SIZE_BYTES);
     
     return fSHA256Worker(TRUE, pbKey, pvInputData, nInputSize, pbOutBuf, pierr);
     

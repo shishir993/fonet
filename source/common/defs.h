@@ -13,7 +13,6 @@
 #define MAX_USERNAME    31
 #define MAX_REQ_STR     255
 
-#define MAX_SHARED_KEYS 32
 
 // time values
 #define TIME_ONE_SEC            1
@@ -35,12 +34,21 @@
 #define ERR_IN_SIZE     123     // input size is invalid
 #define ERR_HASHGEN     124     // error generating hash
 
+
+#define ANODE_LPORT     32894
+#define SERVR_LPORT     57134
+
 #define MAX_BACKLOG     10
 
 #define SR_BUFSIZE      512     // socket send/receive buffer size
 
 // macros
 #define nelems_array(x) (sizeof(x)/sizeof(x[0]))
+
+
+#define FILE_AC_SK_BEGIN    "../etc/ac_sk_127.0.0.1"
+#define FILE_AS_SK_BEGIN    "../etc/as_sk_127.0.0.1"
+#define FILE_CS_SK_BEGIN    "../etc/cs_sk_127.0.0.1"
 
 
 // user typedefs

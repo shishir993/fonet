@@ -29,7 +29,7 @@ BOOL PE_fSendPacket(int iSockID, void *pvPacket, int nSize, int *piReturnVal)
 
     }// while
 
-    logdbg("PE_fSendPacket(): Successfully sent %d bytes from socket %d", nTotalSentBytes, iSockID);
+    //logdbg("PE_fSendPacket(): Successfully sent %d bytes from socket %d", nTotalSentBytes, iSockID);
 
     if(piReturnVal) *piReturnVal = 0;
     return TRUE;
@@ -64,7 +64,7 @@ BOOL PE_fRecvPacket(int iSockID, void *pvPacketBuf, int nSize, int *piReturnVal)
 
     }// while
 
-    logdbg("PE_fRecvPacket(): Successfully received %d bytes from socket %d", nTotalRecvBytes, iSockID);
+    //logdbg("PE_fRecvPacket(): Successfully received %d bytes from socket %d", nTotalRecvBytes, iSockID);
 
     if(piReturnVal) *piReturnVal = 0;
     return TRUE;
@@ -88,7 +88,7 @@ BOOL PE_fTestSockRead(int iSockID, int iTimeoutSec, int iTimeoutMicroSec, int *p
 
     if( select(iSockID+1, &fdSetRead, NULL, NULL, &tvTimeOut) == -1 )
     {
-        logerr("fTestSockRead(): select() failed");
+        logerr("PE_fTestSockRead(): select() failed");
         if(piRetVal) *piRetVal = errno;
         return FALSE;
     }
@@ -100,5 +100,5 @@ BOOL PE_fTestSockRead(int iSockID, int iTimeoutSec, int iTimeoutMicroSec, int *p
 
     return FALSE;
 
-}// fTestSockRead()
+}// PE_fTestSockRead()
 

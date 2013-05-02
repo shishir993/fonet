@@ -24,13 +24,15 @@
       </nativedebugger>
       <runprofile version="9">
         <runcommandpicklist>
-          <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 34678 127.0.0.1 43567</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 34678 127.0.0.1</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 34678 127.0.0.1 45987</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
           <runcommandpicklistitem>"${OUTPUT_PATH}" 34678 127.0.0.1 45678</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 34678 127.0.0.1 5555</runcommandpicklistitem>
+          <runcommandpicklistitem>"${OUTPUT_PATH}" 127.0.0.1</runcommandpicklistitem>
         </runcommandpicklist>
-        <runcommand>"${OUTPUT_PATH}" 34678 127.0.0.1 45678</runcommand>
+        <runcommand>"${OUTPUT_PATH}" 127.0.0.1</runcommand>
         <rundir></rundir>
         <buildfirst>true</buildfirst>
         <terminal-type>0</terminal-type>

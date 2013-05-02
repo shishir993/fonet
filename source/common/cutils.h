@@ -37,7 +37,7 @@
 /* end defines */
 
 /* structures */
-typedef struct _tagAESEncData {
+typedef struct _AESEncData {
     // input
     void *pvInputBuf;
     int nInputSize;
@@ -54,7 +54,7 @@ typedef struct _tagAESEncData {
 }AES_ENCDATA;
 
 
-typedef struct _tagAESDecData {
+typedef struct _AESDecData {
     // inupt
     void *pvInputBuf;
     int nInputSize;

@@ -69,27 +69,27 @@ ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/client: ${OBJECTFILES}
 ${OBJECTDIR}/_ext/1270477542/assert.o: ../common/assert.c 
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
 	${RM} $@.d
-	$(COMPILE.c) -g `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/assert.o ../common/assert.c
+	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/assert.o ../common/assert.c
 
 ${OBJECTDIR}/_ext/1270477542/cutils.o: ../common/cutils.c 
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
 	${RM} $@.d
-	$(COMPILE.c) -g `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/cutils.o ../common/cutils.c
+	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/cutils.o ../common/cutils.c
 
 ${OBJECTDIR}/_ext/1270477542/helpers.o: ../common/helpers.c 
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
 	${RM} $@.d
-	$(COMPILE.c) -g `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/helpers.o ../common/helpers.c
+	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/helpers.o ../common/helpers.c
 
 ${OBJECTDIR}/_ext/1270477542/packet_exchange.o: ../common/packet_exchange.c 
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
 	${RM} $@.d
-	$(COMPILE.c) -g `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/packet_exchange.o ../common/packet_exchange.c
+	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/packet_exchange.o ../common/packet_exchange.c
 
 ${OBJECTDIR}/main.o: main.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
-	$(COMPILE.c) -g `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.c
+	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.c
 
 # Subprojects
 .build-subprojects:

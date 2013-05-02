@@ -36,17 +36,13 @@
 
 // Server to Accessnode
 #define MSG_SA_CLI_ACCEPT   250
-#define MSG_SA_CLI_DATA     251
-#define MSG_SA_CLI_DANGER   252
-#define MSG_SA_CLI_TERM     253
+#define MSG_SA_CLI_REJECT   251
+#define MSG_SA_CLI_DATA     252
+#define MSG_SA_CLI_DANGER   253
+#define MSG_SA_CLI_TERM     254
 
 
 /* structures */
-
-// Send/receive buffer
-struct _srbuffer {
-    BYTE abBuffer[SR_BUFSIZE];
-}SR_BUFFER;
 
 
 typedef struct _helloPacket {
@@ -66,11 +62,6 @@ typedef struct _loginCred {
     char szUsername[MAX_USERNAME+1];
     BYTE abPassword[CRYPT_HASH_SIZE_BYTES];
 }LOGIN_CRED;
-
-
-typedef struct _servSessionKey {
-    BYTE abKey[CRYPT_KEY_SIZE_BYTES];
-}SERV_SKEY;
 
 
 // Unique data that is the access_token

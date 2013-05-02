@@ -1,11 +1,12 @@
 
 #include "scomm.h"
 
-extern int g_nServerPort;
+
 extern struct in_addr g_iaServAddr;
 extern char *pszServAddrStr;
 
 static int lg_iServSocket = -1;
+static BOOL lg_abSRBuffer[SR_BUFSIZE];
 
 
 BOOL fConnectToServer()
@@ -35,7 +36,7 @@ BOOL fConnectToServer()
     memset(&saServAddr, 0, sizeof(struct sockaddr_in));
 
     saServAddr.sin_family = AF_INET;
-    saServAddr.sin_port = htons(g_nServerPort);
+    saServAddr.sin_port = htons(SERVR_LPORT);
     saServAddr.sin_addr.s_addr = g_iaServAddr.s_addr;
 
     while(nTries < 5)
@@ -73,3 +74,50 @@ void vServCloseSocket()
         close(lg_iServSocket);
     lg_iServSocket = -1;
 }
+
+
+BOOL fSendToServer(void *pvPacket, int nPacketSize)
+{
+    ASSERT(pvPacket && nPacketSize > 0);
+    
+    int iRetVal = 0;
+    
+    
+    memset(lg_abSRBuffer, 0, sizeof(lg_abSRBuffer));
+    memcpy(lg_abSRBuffer, pvPacket, nPacketSize);
+    
+    if(!PE_fSendPacket(lg_iServSocket, lg_abSRBuffer, sizeof(lg_abSRBuffer), &iRetVal))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            logwarn("fSendToServer(): Server closed socket unexpectedly");
+        else
+            logwarn("fSendToServer(): error (%s)", strerror(iRetVal));
+        return FALSE;
+    }
+    return TRUE;
+    
+}// fSendToServer()
+
+
+BOOL fRecvFromServer(void *pvBuffer, int nBufSize)
+{
+    ASSERT(pvBuffer && nBufSize >= sizeof(lg_abSRBuffer));
+    
+    int iRetVal = 0;
+    
+    
+    memset(lg_abSRBuffer, 0, sizeof(lg_abSRBuffer));
+    
+    if(!PE_fRecvPacket(lg_iServSocket, lg_abSRBuffer, sizeof(lg_abSRBuffer), &iRetVal))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            logwarn("fRecvFromServer(): Server closed socket unexpectedly");
+        else
+            logwarn("fRecvFromServer(): error (%s)", strerror(iRetVal));
+        return FALSE;
+    }
+    
+    memcpy(pvBuffer, lg_abSRBuffer, nBufSize);
+    return TRUE;
+    
+}// fRecvFromServer()
