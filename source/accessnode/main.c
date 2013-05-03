@@ -89,10 +89,10 @@ static BOOL fDoLoadGenKeys()
 {   
     // first, load the shared keys: anode-server key AND anode-client key
     
-    if(!fLoadSharedKeyFile(FILE_AS_SK_BEGIN, &g_pServerSK))
+    if(!fLoadSharedKeyFile(AS_SK_FILE, &g_pServerSK))
     { logwarn("Could not load AS shared key file"); goto error_return; }
     
-    if(!fLoadSharedKeyFile(FILE_AC_SK_BEGIN, &g_pCliSharedKey))
+    if(!fLoadSharedKeyFile(CA_SK_FILE, &g_pCliSharedKey))
     { logwarn("Could not load AC shared key file"); goto error_return; }
     
     // generate HMAC keys for each

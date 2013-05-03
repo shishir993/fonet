@@ -60,7 +60,7 @@ typedef struct _handshake {
 // 
 typedef struct _loginCred {
     char szUsername[MAX_USERNAME+1];
-    BYTE abPassword[CRYPT_HASH_SIZE_BYTES];
+    char szPassphrase[MAX_PASSWD+1];
 }LOGIN_CRED;
 
 
@@ -71,6 +71,5 @@ typedef struct _anUniqData {
     BYTE abHmacCSIP[CRYPT_HASH_SIZE_BYTES];
     struct timeval tvGenerated;
 }AN_UNIQDATA;
-
 
 #endif // _PACKET_H

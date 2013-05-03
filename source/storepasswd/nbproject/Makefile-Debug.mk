@@ -37,6 +37,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 OBJECTFILES= \
 	${OBJECTDIR}/_ext/1270477542/assert.o \
 	${OBJECTDIR}/_ext/1270477542/cutils.o \
+	${OBJECTDIR}/_ext/1270477542/helpers.o \
 	${OBJECTDIR}/main.o
 
 
@@ -73,6 +74,11 @@ ${OBJECTDIR}/_ext/1270477542/cutils.o: ../common/cutils.c
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
 	${RM} $@.d
 	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/cutils.o ../common/cutils.c
+
+${OBJECTDIR}/_ext/1270477542/helpers.o: ../common/helpers.c 
+	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
+	${RM} $@.d
+	$(COMPILE.c) -g -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/helpers.o ../common/helpers.c
 
 ${OBJECTDIR}/main.o: main.c 
 	${MKDIR} -p ${OBJECTDIR}

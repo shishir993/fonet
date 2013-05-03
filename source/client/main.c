@@ -22,6 +22,7 @@
 #include "../common/packet.h"
 #include "../common/helpers.h"
 
+
 //void *Communicate(void *);
 //void *Receive(void *);
 
@@ -43,16 +44,17 @@ HANDSHAKE handShake;
 HANDSHAKE *pAccessResponse = NULL;
 uint32_t myNonce = 0;
 void *pvSendPacket = NULL;
-SHARED_KEY  *g_pCliSharedKey;   // to store client-accessnode shared keys
-BYTE *g_pbCliHMACKey;           // hmac key for client: hash(cli shared key)
 int nSendPacketSize = 0;
 int iMIDReply = 0;
 int nSizeReply = 0;
 HANDSHAKE *pAccResponse = NULL;
 void *pvgen = NULL;
 
-SHARED_KEY  *g_pCliSharedKey;    // to store client-accessnode shared keys
-BYTE *g_pbCliHMACKey;            // hmac key for client: hash(cli shared key)
+SHARED_KEY *g_pCliAnodeSharedKey;   // to store client-accessnode shared keys
+BYTE *g_pbCliAnodeHMACKey;          // hmac key for client-server
+
+SHARED_KEY  *g_pCliServerSharedKey;   // to store client-accessnode shared keys
+BYTE *g_pbCliServerHMACKey;           // hmac key for client: hash(cli shared key)
 
 uint32_t challengenonce=0;
 static int lg_iClientSocket;
@@ -88,10 +90,15 @@ int main(int argc, char *argv[]) {
         return 1;
     
 #ifdef _DEBUG
-    printf("Shared key: ");
-    vPrintBytes(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
-    printf("HMAC key  : ");
-    vPrintBytes(g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES);
+    printf("Anode Shared key: ");
+    vPrintBytes(g_pCliAnodeSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
+    printf("Anode HMAC key  : ");
+    vPrintBytes(g_pbCliAnodeHMACKey, CRYPT_KEY_SIZE_BYTES);
+    
+    printf("Server Shared key: ");
+    vPrintBytes(g_pCliServerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
+    printf("Server HMAC key  : ");
+    vPrintBytes(g_pbCliServerHMACKey, CRYPT_KEY_SIZE_BYTES);
 #endif
     
     //printf("%s%d%s",accessIP,accessport,serverIP);
@@ -171,26 +178,40 @@ int main(int argc, char *argv[]) {
 
 static BOOL fDoLoadGenKeys()
 {   
-    // first, load the shared keys: anode-server key AND anode-client key
-    
-    if(!fLoadSharedKeyFile(FILE_AC_SK_BEGIN, &g_pCliSharedKey))
+    // first, load the shared keys: anode-client key
+    if(!fLoadSharedKeyFile(CA_SK_FILE, &g_pCliAnodeSharedKey))
     {
         logwarn("Could not load shared key file!");
-        return 1;
+        goto error_return;
     }
     
     // generate HMAC key
-    if((g_pbCliHMACKey = pbGenHMACKey(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    if((g_pbCliAnodeHMACKey = pbGenHMACKey(g_pCliAnodeSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
     {
         logwarn("Could not generate HMAC key!");
-        return 1;
+        goto error_return;
+    }
+    
+    // client-server
+    if(!fLoadSharedKeyFile(CS_SK_FILE, &g_pCliServerSharedKey))
+    {
+        logwarn("Could not load shared key file!");
+        goto error_return;
+    }
+    
+    // generate HMAC key
+    if((g_pbCliServerHMACKey = pbGenHMACKey(g_pCliServerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    {
+        logwarn("Could not generate HMAC key!");
+        goto error_return;
     }
     
     return TRUE;
     
     error_return:
-    if(g_pCliSharedKey) vSecureFree(g_pCliSharedKey);
-    if(g_pbCliHMACKey) vSecureFree(g_pbCliHMACKey);
+    if(g_pCliServerSharedKey) vSecureFree(g_pCliServerSharedKey);
+    if(g_pbCliServerHMACKey) vSecureFree(g_pbCliServerHMACKey);
+    
     return FALSE;
 
 }// fLoadSharedKeys()
@@ -311,7 +332,7 @@ void doHandshake()
         return;
         //goto error_return;
     }
-    if(!fDeconstructPacket(g_pCliSharedKey->abKey, g_pbCliHMACKey, lg_abSRBuffer,
+    if(!fDeconstructPacket(g_pCliAnodeSharedKey->abKey, g_pbCliAnodeHMACKey, lg_abSRBuffer,
             sizeof(lg_abSRBuffer), &iMIDReply, &nSizeReply, (void**)&pAccessResponse))
     {
         logwarn("Error in decrypting packet");
@@ -332,8 +353,8 @@ void doHandshake()
     handShake.u32Response = challengenonce+1;
     
     if((pvSendPacket = pvConstructPacket(MSG_CA_RESPCHAL, &handShake, sizeof(handShake),
-            g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES,
-            g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES,
+            g_pCliAnodeSharedKey->abKey, CRYPT_KEY_SIZE_BYTES,
+            g_pbCliAnodeHMACKey, CRYPT_KEY_SIZE_BYTES,
             &nSendPacketSize)) == NULL )
     {
         logwarn("Unable to create handshake packet!");
@@ -365,7 +386,7 @@ void doHandshake()
         //goto error_return;
     }
     
-    if(!fDeconstructPacket(g_pCliSharedKey->abKey, g_pbCliHMACKey, lg_abSRBuffer,
+    if(!fDeconstructPacket(g_pCliAnodeSharedKey->abKey, g_pbCliAnodeHMACKey, lg_abSRBuffer,
             sizeof(lg_abSRBuffer), &iMIDReply, &nSizeReply, (void**)&pAccessResponse))
     {
         logwarn("Error in decrypting packet");

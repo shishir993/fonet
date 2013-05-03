@@ -46,9 +46,9 @@
 #define nelems_array(x) (sizeof(x)/sizeof(x[0]))
 
 
-#define FILE_AC_SK_BEGIN    "../etc/ac_sk_127.0.0.1"
-#define FILE_AS_SK_BEGIN    "../etc/as_sk_127.0.0.1"
-#define FILE_CS_SK_BEGIN    "../etc/cs_sk_127.0.0.1"
+#define CS_SK_FILE  "../etc/cs_sharedkey.dat"
+#define CA_SK_FILE  "../etc/ca_sharedkey.dat"
+#define AS_SK_FILE  "../etc/as_sharedkey.dat"
 
 
 // user typedefs

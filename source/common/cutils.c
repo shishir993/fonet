@@ -185,6 +185,28 @@ BOOL fPassphraseToKey(const char *pszPass, int nPassLen,
 }
 
 
+
+BOOL fPassphraseSaltToKey(const char *pszPass, int nPassLen, 
+        BYTE *pbSalt, int nSaltSize,
+        BYTE *pbKeyOut, int nKeySizeOut)
+{
+    ASSERT(pszPass && nPassLen > 0);
+    ASSERT(pbSalt && nSaltSize == CRYPT_SALT_SIZE_BYTES);
+    ASSERT(pbKeyOut && nKeySizeOut == CRYPT_KEY_SIZE_BYTES);
+    
+    gcry_error_t gcError = GPG_ERR_NO_ERROR;
+
+    if ((gcError = gcry_kdf_derive(pszPass, nPassLen, CRYPT_ALG_KDF, CRYPT_ALG_HASH,
+            pbSalt, CRYPT_SALT_SIZE_BYTES, CRYPT_KDF_ITRS,
+            CRYPT_KEY_SIZE_BYTES, pbKeyOut)) != GPG_ERR_NO_ERROR) 
+    {
+        return FALSE;
+    }
+    return TRUE;
+}
+
+
+
 /**
  * Generates a counter value of the required size to be used in CTR mode of encryption.
  * 

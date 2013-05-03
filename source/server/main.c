@@ -9,11 +9,15 @@
 #include<arpa/inet.h>
 #include<netdb.h>
 
-
 #include "../common/defs.h"
 #include "../common/packet.h"
 #include "../common/packet_exchange.h"
 #include "../common/helpers.h"
+#include "keys.h"
+
+#define USERS_FILE  "../etc/passwd.dat"
+#define CS_SK_FILE  "../etc/cs_sharedkey.dat"
+
 
 SHARED_KEY  *g_pANSerSharedKey;    // to store acessnode-server server shared keys
 BYTE *g_pbANSerHMACKey; 		//hmac key for accessnode: hash(ANSer shared key)
@@ -38,7 +42,8 @@ static BYTE lg_abSRBuffer[SR_BUFSIZE];
 
 
 // Functions
-static BOOL fDoLoadGenKeys();
+static BOOL fDoLoadANodeKey();
+static BOOL fDoLoadCliSharedKey(const char *pszFilepath);
 int socket_connection(int PORT);
 void communication();
 
@@ -53,16 +58,40 @@ int main(int argc, char *argv[]) {
     AccessIP = argv[1];
     printf("%s\n", AccessIP);
     
-    //loadclientpassword();
+    // load client username-password file
+    if(!fLoadUsersFromFile(USERS_FILE))
+    {
+        logwarn("Could not load user passwd file");
+        return 1;
+    }
+
+    // wait for connect from accessnode
     if(socket_connection(SERVR_LPORT) < 0)
     {
         loginfo("Failed to receive connect() from accessnode");
         return 1;
     }
     
-    // load shared keys
-    if(!fDoLoadGenKeys())
+    // load anode shared key
+    if(!fDoLoadANodeKey())
         return 1;
+    
+    // load client shared key file
+    if(!fDoLoadCliSharedKey(CS_SK_FILE))
+        return 1;
+    
+#ifdef _DEBUG
+    printf("Anode Shared key: ");
+    vPrintBytes(g_pANSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
+    printf("Anode HMAC key  : ");
+    vPrintBytes(g_pbANSerHMACKey, CRYPT_KEY_SIZE_BYTES);
+    
+    printf("Client Shared key: ");
+    vPrintBytes(g_pCliSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
+    printf("Client HMAC key  : ");
+    vPrintBytes(g_pbCliSerHMACKey, CRYPT_KEY_SIZE_BYTES);
+    
+#endif
     
     communication();
     
@@ -71,36 +100,52 @@ int main(int argc, char *argv[]) {
 }// main()
 
 
-static BOOL fDoLoadGenKeys()
-{   
-    // first, load the shared keys: anode-server key AND anode-client key
-    
-    if(!fLoadSharedKeyFile(FILE_AS_SK_BEGIN, &g_pANSerSharedKey))
+static BOOL fDoLoadANodeKey()
+{
+    // shared key first
+    if(!fLoadSharedKeyFile(AS_SK_FILE, &g_pANSerSharedKey))
     { logwarn("Could not load AS shared key file"); goto error_return; }
     
-    if(!fLoadSharedKeyFile(FILE_AC_SK_BEGIN, &g_pCliSerSharedKey))
-    { logwarn("Could not load AC shared key file"); goto error_return; }
-    
-    // generate HMAC keys for each
-    if((g_pbCliSerHMACKey = pbGenHMACKey(g_pCliSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
-    { logwarn("Could not generate client HMAC key"); goto error_return; }
-    
+    // calculate hmac key from shared key
     if((g_pbANSerHMACKey = pbGenHMACKey(g_pANSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
     { logwarn("Could not generate server HMAC key"); goto error_return; }
     
     return TRUE;
     
+    
     error_return:
     if(g_pANSerSharedKey) vSecureFree(g_pANSerSharedKey);
+    if(g_pbANSerHMACKey) vSecureFree(g_pbANSerHMACKey);
+    g_pANSerSharedKey = NULL;
+    g_pbANSerHMACKey = NULL;
+    return FALSE;
+}
+
+
+static BOOL fDoLoadCliSharedKey(const char *pszFilepath)
+{      
+    if(!fLoadSharedKeyFile(pszFilepath, &g_pCliSerSharedKey))
+    { logwarn("Could not load CS shared key file"); goto error_return; }
+    
+    // generate HMAC keys for each
+    if((g_pbCliSerHMACKey = pbGenHMACKey(g_pCliSerSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    { logwarn("Could not generate client HMAC key"); goto error_return; }
+    
+    return TRUE;
+    
+    error_return:
     if(g_pCliSerSharedKey) vSecureFree(g_pCliSerSharedKey);
     if(g_pbCliSerHMACKey) vSecureFree(g_pbCliSerHMACKey);
-    if(g_pbANSerHMACKey) vSecureFree(g_pbANSerHMACKey);
+    g_pCliSerSharedKey = NULL;
+    g_pbCliSerHMACKey = NULL;
     return FALSE;
 
 }// fLoadSharedKeys()
 
 
 int socket_connection(int PORT) {
+    
+    int yes = 1;
     char remoteIP[INET_ADDRSTRLEN+1];
     
     listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -108,6 +153,13 @@ int socket_connection(int PORT) {
     {
         printf("socket() failed");
         return -1;
+    }
+    
+    // set it to reuse address
+    if( setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1 )
+    {
+        logwarn("socket_connection(): setsockopt() failed %s\n", strerror(errno));
+        // not a critical error
     }
     
     memset(&servaddr, 0, sizeof (servaddr));

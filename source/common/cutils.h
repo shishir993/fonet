@@ -98,6 +98,9 @@ BYTE* pbGenHMACKey(BYTE *pbInputKey, int nInputKeySize);
 BOOL fPassphraseToKey(const char *pszPass, int nPassLen, 
         BYTE *pbSaltOut, int saltOutSize,
         BYTE *pbKeyOut, int keyOutSize);
+BOOL fPassphraseSaltToKey(const char *pszPass, int nPassLen, 
+        BYTE *pbSalt, int nSaltSize,
+        BYTE *pbKeyOut, int nKeySizeOut);
 
 BOOL fIsBufSizeEnough(int inputSize, int outputSize, int *piReqSize);
 int  iRoundToBlockSize(int inputSize);

@@ -1,0 +1,8 @@
+DONE-        Server loads client username/passwd file during startup
+NOTREQUIRED- When generating client username/passwd file, create a 'salt' 
+             file for each username/password
+- Client login to server
+- Access token generation in anode.
+- Ability to send only mid and size=0 in 'ciphertext'
+- Anode statelessly verifying access token
+DONE-        base64 support: https://github.com/superwills/NibbleAndAHalf

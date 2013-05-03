@@ -24,6 +24,8 @@
 #include "../common/defs.h"
 #include "../common/sdbg.h"
 #include "../common/cutils.h"
+#include "../common/base64/base64.h"
+
 
 #define FTYPE_UP    1   // user/passwd file
 #define FTYPE_SK    2   // shared key file
@@ -35,8 +37,6 @@ void vDisplayRecords(int fd, int ftype);
 
 void vUserPasswdFile();
 void vSharedKeyFile();
-void vSplitUPFile();
-void vSplitSKFile();
 
 /*
  * 
@@ -47,12 +47,11 @@ int main() {
     if (!fInitGCrypt())
         return 1;
 
-    while (userOption != 7) 
+    while (userOption != 5) 
     {
         printf("\nMenu\n1. Username/password file\n2. Shared key file\n");
-        printf("3. Split username/password file\n4. Split shared key file\n");
-        printf("5. Display username/password file\n6. Display shared key file\n");
-        printf("7. Quit\n? ");
+        printf("3. Display username/password file\n4. Display shared key file\n");
+        printf("5. Quit\n? ");
         scanf("%d", &userOption);
         switch (userOption) 
         {
@@ -65,13 +64,7 @@ int main() {
                 break;
 
             case 3:
-                break;
-            
             case 4:
-                break;
-            
-            case 5:
-            case 6:
             {
                 int fd = -1;
                 int flags = O_RDONLY;
@@ -81,7 +74,7 @@ int main() {
                 fReadLineFromStdin(szFilepath, MAX_PATH+1);
                 if((fd = iOpenFile(szFilepath, flags)) == -1)
                 { logerr("open() "); break; }
-                if(userOption == 5)
+                if(userOption == 3)
                     vDisplayRecords(fd, FTYPE_UP);
                 else
                     vDisplayRecords(fd, FTYPE_SK);
@@ -90,7 +83,7 @@ int main() {
                 break;
             }
             
-            case 7:
+            case 5:
                 break;
             
             default: printf("Invalid option. Try again.\n");
@@ -144,6 +137,9 @@ BOOL fReadLineFromStdin(char *pszBuffer, int nBufLen)
 void vDisplayRecords(int fd, int ftype)
 {
     ssize_t uBytesRead = 0;
+    char *szB64Decoded = NULL;
+    char *pch = NULL;
+    int nB64DecodedLen = 0;
 
     int nRecord = 0;
 
@@ -156,8 +152,26 @@ void vDisplayRecords(int fd, int ftype)
             printf("Username: %s\n", upData.szUsername);
             printf("Salt    : ");
             vPrintBytes(upData.abSalt, CRYPT_SALT_SIZE_BYTES);
+            if((szB64Decoded = base64(upData.abSalt, CRYPT_SALT_SIZE_BYTES, 
+                    &nB64DecodedLen)) != NULL)
+            {
+                pch = szB64Decoded;
+                while(nB64DecodedLen-- > 0)
+                    printf("%c", *pch++);
+                printf("\n");
+                free(szB64Decoded);
+            }
             printf("Key     : ");
             vPrintBytes(upData.abDerivedKey, CRYPT_KEY_SIZE_BYTES);
+            if((szB64Decoded = base64(upData.abDerivedKey, CRYPT_KEY_SIZE_BYTES, 
+                    &nB64DecodedLen)) != NULL)
+            {
+                pch = szB64Decoded;
+                while(nB64DecodedLen-- > 0)
+                    printf("%c", *pch++);
+                printf("\n");
+                free(szB64Decoded);
+            }
             DBG_MEMSET(&upData, sizeof (USER_PASSWD));
         }
     }
@@ -216,20 +230,10 @@ int iOpenFile(const char *pszFilepath, int flags)
     int fd = -1;
     int openPerm = S_IRUSR|S_IWUSR|S_IRGRP;
     
-    while(1)
+    if((fd = open(pszFilepath, flags, openPerm)) == -1)
     {
-        if((fd = open(pszFilepath, flags, openPerm)) == -1)
-        {
-            if(errno == ENOENT)
-            {
-                printf("File does not exist. Will create a new one...\n");
-                flags = O_WRONLY | O_CREAT | O_TRUNC;
-            }
-            else
-                break;
-        }
-        else
-            break;
+        logerr("open(): %s: ", pszFilepath);
+        return -1;
     }
     
     return fd;
@@ -240,6 +244,10 @@ void vUserPasswdFile()
 {
     char szFile[MAX_PATH+1];
     char szPassphrase[MAX_PASSWD+1];
+    
+    char *pszSalt = NULL;
+    char *pszHash = NULL;
+    int nEncodedLen = 0;
     
     USER_PASSWD upData;
     
@@ -267,14 +275,47 @@ void vUserPasswdFile()
                         upData.abSalt, CRYPT_SALT_SIZE_BYTES,
                         upData.abDerivedKey, CRYPT_KEY_SIZE_BYTES))
                 { logwarn("Unable to derive passphrase!"); break; }
-                if(fWriteToFile(fd, &upData, sizeof(upData)))
+                
+                // username:salt:hash'\n'
+                if(write(fd, upData.szUsername, 
+                        strlen(upData.szUsername)) != strlen(upData.szUsername))
+                { logerr("write() "); break; }
+                
+                if((pszSalt = base64(upData.abSalt, CRYPT_SALT_SIZE_BYTES, 
+                        &nEncodedLen)) == NULL)
                 {
-                    ++nRecords;
-                    printf("Record %d added successfully\n", nRecords);
+                    logwarn("Could not convert salt to base64");
+                    break;
                 }
+                
+                if(write(fd, ":", 1) != 1)
+                { logerr("user : write() "); break; }
+                
+                // write salt
+                if(write(fd, pszSalt, nEncodedLen) != nEncodedLen)
+                { logerr("salt write() "); break; }
+                
+                if(write(fd, ":", 1) != 1)
+                { logerr("salt : write() "); break; }
+                
+                if((pszHash = base64(upData.abDerivedKey, CRYPT_KEY_SIZE_BYTES, 
+                        &nEncodedLen)) == NULL)
+                {
+                    logwarn("Could not convert hash to base64");
+                    break;
+                }
+                
+                // write hash
+                if(write(fd, pszHash, nEncodedLen) != nEncodedLen)
+                { logerr("hash write() "); break; }
+                
+                if(write(fd, "\n", 1) != 1)
+                { logerr("user : write() "); break; }
+                free(pszSalt);
+                free(pszHash);
                 break;
                 
-            case 3: break;
+            case 2: break;
             default: logwarn("Invalid option!\n"); break;
         }
     }// while(1)

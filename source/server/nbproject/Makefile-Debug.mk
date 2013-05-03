@@ -39,6 +39,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/_ext/1270477542/cutils.o \
 	${OBJECTDIR}/_ext/1270477542/helpers.o \
 	${OBJECTDIR}/_ext/1270477542/packet_exchange.o \
+	${OBJECTDIR}/keys.o \
 	${OBJECTDIR}/main.o
 
 
@@ -85,6 +86,11 @@ ${OBJECTDIR}/_ext/1270477542/packet_exchange.o: ../common/packet_exchange.c
 	${MKDIR} -p ${OBJECTDIR}/_ext/1270477542
 	${RM} $@.d
 	$(COMPILE.c) -g -Wall -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/packet_exchange.o ../common/packet_exchange.c
+
+${OBJECTDIR}/keys.o: keys.c 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} $@.d
+	$(COMPILE.c) -g -Wall -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/keys.o keys.c
 
 ${OBJECTDIR}/main.o: main.c 
 	${MKDIR} -p ${OBJECTDIR}
