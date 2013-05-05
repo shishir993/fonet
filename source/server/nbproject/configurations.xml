@@ -20,8 +20,8 @@
       <itemPath>../common/cutils.c</itemPath>
       <itemPath>../common/helpers.c</itemPath>
       <itemPath>keys.c</itemPath>
-      <itemPath>main.c</itemPath>
       <itemPath>../common/packet_exchange.c</itemPath>
+      <itemPath>smain.c</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
                    displayName="Test Files"
@@ -80,7 +80,7 @@
       </item>
       <item path="keys.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="main.c" ex="false" tool="0" flavor2="0">
+      <item path="smain.c" ex="false" tool="0" flavor2="0">
       </item>
     </conf>
     <conf name="Release" type="1">
@@ -133,7 +133,7 @@
       </item>
       <item path="keys.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="main.c" ex="false" tool="0" flavor2="0">
+      <item path="smain.c" ex="false" tool="0" flavor2="0">
       </item>
     </conf>
   </confs>

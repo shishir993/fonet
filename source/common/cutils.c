@@ -45,6 +45,12 @@ BOOL fInitGCrypt()
     /* Tell Libgcrypt that initialization has completed. */
     gcry_control (GCRYCTL_INITIALIZATION_FINISHED, 0);
     
+    loginfo("MEM STATS...");
+    gcry_control(GCRYCTL_DUMP_MEMORY_STATS);
+
+    loginfo("SECMEM STATS...");
+    gcry_control(GCRYCTL_DUMP_SECMEM_STATS);
+    
     loginfo("gcrypt library initialization done...");
     
 #ifdef _DEBUG
@@ -402,25 +408,44 @@ static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,
     BYTE *pbHash = NULL;
     BYTE *pbSource = (BYTE*)pvInputData;
     
-    int i;
+    int i, nTries;
     gcry_md_hd_t pSHA256Handle = NULL;
     unsigned int openFlag = 0;
     
     openFlag = (fHMACEnable)? GCRY_MD_FLAG_HMAC : GCRY_MD_FLAG_SECURE ;
 
     // open a context
-    if( (gcError = gcry_md_open(&pSHA256Handle, CRYPT_ALG_HASH, openFlag)) != GPG_ERR_NO_ERROR )
+    nTries = 0;
+    while(nTries < 5)
     {
-        logerr("fGetHash(): Error opening context: %d\n", gcError);
-        goto fend;
+        ++nTries;
+        gcError = GPG_ERR_NO_ERROR;
+        if( (gcError = gcry_md_open(&pSHA256Handle, CRYPT_ALG_HASH, openFlag)) != GPG_ERR_NO_ERROR )
+        {
+            logerr("fSHA256Worker(): Error opening context: %u\n", gcError);
+            printf("Failure: %s/%s\n", gcry_strsource(gcError), gcry_strerror(gcError));
+            loginfo("MEM STATS...");
+            gcry_control(GCRYCTL_DUMP_MEMORY_STATS);
+            
+            loginfo("SECMEM STATS...");
+            gcry_control(GCRYCTL_DUMP_SECMEM_STATS);
+            
+        }
+        else 
+            break;
+        loginfo("Trying again in %d seconds...", 3);
+        sleep(3);
     }
+    
+    if(nTries == 5)
+        goto fend;
     
     // set key if HMAC is required
     if(fHMACEnable)
     {
         if( (gcError = gcry_md_setkey(pSHA256Handle, pbKey, CRYPT_KEY_SIZE_BYTES)) != GPG_ERR_NO_ERROR )
         {
-            logerr("fGetHash(): Error setting key for SHA256: %d\n", gcError);
+            logerr("fSHA256Worker(): Error setting key for SHA256: %u\n", gcError);
             goto fend;
         }
     }
@@ -440,7 +465,7 @@ static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,
     pbHash = gcry_md_read(pSHA256Handle, CRYPT_ALG_HASH);
     if(!pbHash)
     {
-        logerr("fGetHash(): gcry_md_read() failed\n");
+        logerr("fSHA256Worker(): gcry_md_read() failed\n");
         gcError = ERR_HASHGEN;
         goto fend;
     }

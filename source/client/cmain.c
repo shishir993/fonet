@@ -67,7 +67,9 @@ BOOL doHandshake();
 BOOL sendLogin(char* usr, char* pwd, char* ServerIP);
 BOOL receiveKey();
 BOOL fStartService(const char *pszServerIP);
-char *pszBase64Op(char *pszInput, int nInputSize, int opType, const char *pszServerIP);
+char *pszBase64Op(char *pszInput, int nInputSize, int opType, const char *pszServerIP,
+        ATOKEN *patoken);
+BOOL fSendLogout(const char *pszServerIP, ATOKEN *patoken);
 
 static void vWriteToBuffer(void *pvInput, int nInputSize);
 static BOOL fSendBuffer(int *piError);
@@ -89,6 +91,9 @@ int main(int argc, char *argv[]) {
     
     accessIP = argv[1];
     serverIP = argv[2];
+    
+    if(!fInitGCrypt())
+        return 1;
     
     // load shared keys
     if(!fDoLoadGenKeys())
@@ -123,10 +128,21 @@ int main(int argc, char *argv[]) {
     scanf("%s", usr);
     printf("Password: ");
     scanf("%s", pwd);
-    sendLogin(usr, pwd, serverIP);
-    receiveKey();
+    if(!sendLogin(usr, pwd, serverIP))
+    {
+        loginfo("Unable to login to server.");
+        goto fend;
+    }
+    
+    if(!receiveKey())
+    {
+        loginfo("Unable to receive accesstoken.");
+        goto fend;
+    }
+    
     fStartService(serverIP);
-
+    loginfo("Client quitting...");
+    
     fend:
     if(sock != -1) close(sock);
     return 0;
@@ -507,15 +523,19 @@ BOOL fStartService(const char *pszServerIP)
             logwarn("Could not read input!");
             continue;
         }
-        printf("Encode/Decode/Quit? (e/c/q) ");
+        printf("Encode/Decode/Quit? (e/d/q) ");
         scanf("%c", &chOpType);
         logdbg("Querying \"%s\"...", szRequest);
         if(tolower(chOpType) == 'q')
-        {}
+        {
+            return fSendLogout(pszServerIP, pAToken);
+        }
         else if(tolower(chOpType) == 'd')
-            pszOutput = pszBase64Op(szRequest, sizeof(szRequest), OP_TYPE_DEC, pszServerIP);
+            pszOutput = pszBase64Op(szRequest, sizeof(szRequest), OP_TYPE_DEC, 
+                    pszServerIP, pAToken);
         else
-            pszOutput = pszBase64Op(szRequest, sizeof(szRequest), OP_TYPE_ENC, pszServerIP);
+            pszOutput = pszBase64Op(szRequest, sizeof(szRequest), OP_TYPE_ENC, 
+                    pszServerIP, pAToken);
         if(!pszOutput)
             printf("Result: \"%s\"\n", "(null)");
         else
@@ -529,10 +549,11 @@ BOOL fStartService(const char *pszServerIP)
 }
 
 
-char *pszBase64Op(char *pszInput, int nInputSize, int opType, const char *pszServerIP)
+char *pszBase64Op(char *pszInput, int nInputSize, int opType, const char *pszServerIP,
+        ATOKEN *patoken)
 {
     ASSERT(pszInput && nInputSize > 0 && nInputSize <= MAX_REQ_STR+1);
-    ASSERT(pszServerIP);
+    ASSERT(pszServerIP && patoken);
     
     int mid;
     void *pvInnerPacket = NULL;
@@ -558,7 +579,7 @@ char *pszBase64Op(char *pszInput, int nInputSize, int opType, const char *pszSer
             &nInnerPacketSize)) == NULL)
         return NULL;
     
-    anodeMsgSize = INET_ADDRSTRLEN + nInnerPacketSize;
+    anodeMsgSize = INET_ADDRSTRLEN + sizeof(ATOKEN) + nInnerPacketSize;
     if((pvAnodeMsg = malloc(anodeMsgSize)) == NULL)
     {
         logerr("send service req malloc() ");
@@ -567,7 +588,8 @@ char *pszBase64Op(char *pszInput, int nInputSize, int opType, const char *pszSer
     
     memset(pvAnodeMsg, 0, anodeMsgSize);
     strcpy(pvAnodeMsg, pszServerIP);
-    memcpy(pvAnodeMsg+INET_ADDRSTRLEN, pvInnerPacket, nInnerPacketSize);
+    memcpy(pvAnodeMsg+INET_ADDRSTRLEN, patoken, sizeof(ATOKEN));
+    memcpy(pvAnodeMsg+INET_ADDRSTRLEN+sizeof(ATOKEN), pvInnerPacket, nInnerPacketSize);
     
     free(pvInnerPacket); pvInnerPacket = NULL;
     
@@ -650,6 +672,74 @@ static void vWriteToBuffer(void *pvInput, int nInputSize)
 }
 
 
+BOOL fSendLogout(const char *pszServerIP, ATOKEN *patoken)
+{
+    ASSERT(pszServerIP && patoken);
+    
+    void *pvInnerPacket = NULL;
+    int nInnerPacketSize = 0;
+    
+    void* pvAnodeMsg = NULL;
+    int anodeMsgSize = 0;
+    
+    void *pvOuterPacket = NULL;
+    int nOuterPacketSize = 0;
+    
+    // send request
+    if((pvInnerPacket = pvConstructPacket(MSG_CS_LOGOUT, NULL, 0, 
+            pbSKey, CRYPT_KEY_SIZE_BYTES,
+            pbSHMACKey, CRYPT_KEY_SIZE_BYTES,
+            &nInnerPacketSize)) == NULL)
+        return NULL;
+    
+    anodeMsgSize = INET_ADDRSTRLEN + sizeof(ATOKEN) + nInnerPacketSize;
+    if((pvAnodeMsg = malloc(anodeMsgSize)) == NULL)
+    {
+        logerr("send service req malloc() ");
+        goto error_return;        
+    }
+    
+    memset(pvAnodeMsg, 0, anodeMsgSize);
+    strcpy(pvAnodeMsg, pszServerIP);
+    memcpy(pvAnodeMsg+INET_ADDRSTRLEN, patoken, sizeof(ATOKEN));
+    memcpy(pvAnodeMsg+INET_ADDRSTRLEN+sizeof(ATOKEN), pvInnerPacket, nInnerPacketSize);
+    
+    free(pvInnerPacket); pvInnerPacket = NULL;
+    
+    if((pvOuterPacket = pvConstructPacket(MSG_CA_SERV_DATA, 
+            pvAnodeMsg, anodeMsgSize,
+            pbAKey, CRYPT_KEY_SIZE_BYTES,
+            pbAHMACKey, CRYPT_KEY_SIZE_BYTES,
+            &nOuterPacketSize)) == NULL )
+    {
+        logwarn("Unable to create op service packet!");
+        goto error_return;
+    }
+    
+    vWriteToBuffer(pvOuterPacket, nOuterPacketSize);
+    free(pvOuterPacket); pvOuterPacket = NULL;
+    free(pvAnodeMsg); pvAnodeMsg = NULL;
+    
+    if(!fSendBuffer(&iRetVal))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            loginfo("Accessnode closed connection unexpectedly!");
+        else
+            loginfo("Failed to send logout (%s)", strerror(iRetVal));
+        goto error_return;
+    }
+
+    loginfo("Logout message sent...");
+    return TRUE;
+    
+    error_return:
+    if(pvInnerPacket) free(pvInnerPacket);
+    if(pvOuterPacket) free(pvOuterPacket);
+    if(pvAnodeMsg) free(pvAnodeMsg);
+    return FALSE;
+}
+
+
 static BOOL fSendBuffer(int *piError)
 {
     return PE_fSendPacket(sock, lg_abSRBuffer, sizeof(lg_abSRBuffer),
@@ -664,8 +754,13 @@ static BOOL fRecvBuffer(int *piError)
             piError);    
 }
 
+
 static void vFreePlainTextBuffer(void **pvMessageContents)
 {
     if(pvMessageContents && *pvMessageContents)
+    {
         free((*pvMessageContents) - sizeof(int) - sizeof(int));
+        *pvMessageContents = NULL;
+    }
+    
 }

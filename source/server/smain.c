@@ -57,7 +57,7 @@ BOOL fAcceptClient(const char *pszClientIP);
 BOOL fRejectClient(const char *pszClientIP);
 BOOL fHandleCliRequest(int mid, int msgSize, void *pvMessage, 
         void **pvCliPacket, int *pnCliPacketSize);
-BOOL fClientLogout();
+BOOL fClientLogout(void **ppvCliPacket, int *pnCliPacketSize);
 
 BOOL fConstSendAnodePacket(const char *pszClientIP, int mid, 
         void *pvCliPacket, int nCliPacketSize);
@@ -82,6 +82,9 @@ int main(int argc, char *argv[]) {
 
     AccessIP = argv[1];
     printf("%s\n", AccessIP);
+    
+    if(!fInitGCrypt())
+        return 1;
     
     // load client username-password file
     if(!fLoadUsersFromFile(USERS_FILE))
@@ -313,9 +316,12 @@ void communication() {
                     if(fHandleCliRequest(iMIDCSMsg, nSizeCSMsg, pCSMsg, 
                             &pvCliPacket, &nCliPacketSize))
                     {
-                        fConstSendAnodePacket(clientIP, MSG_SA_CLI_DATA, 
-                                pvCliPacket, nCliPacketSize);
-                        free(pvCliPacket); pvCliPacket = NULL;
+                        if(pvCliPacket)
+                        {
+                            fConstSendAnodePacket(clientIP, MSG_SA_CLI_DATA, 
+                                    pvCliPacket, nCliPacketSize);
+                            free(pvCliPacket); pvCliPacket = NULL;
+                        }
                     }
                         
                     vFreePlainTextBuffer((void**)&pCSMsg);
@@ -388,6 +394,8 @@ BOOL fAcceptClient(const char *pszClientIP)
 BOOL fHandleCliRequest(int mid, int msgSize, void *pvMessage, 
         void **ppvCliPacket, int *pnCliPacketSize)
 {   
+    ASSERT(ppvCliPacket && pnCliPacketSize);
+    
     void *pvSendPacket = NULL;
     int nSendPacketSize = 0;
     
@@ -400,16 +408,18 @@ BOOL fHandleCliRequest(int mid, int msgSize, void *pvMessage,
     char szOutput[MAX_REQ_STR+1];
     
     
-    pbInput = (BYTE*)pvMessage;
-    nInputLen = strlen(pbInput);
-    if(nInputLen <= 0)
+    if(pvMessage)
     {
-        loginfo("Client input string length <= 0");
-        return TRUE;
-    }
-    
-    if(nInputLen > MAX_REQ_STR)
+        pbInput = (BYTE*)pvMessage;
+        nInputLen = strlen(pbInput);
+        if(nInputLen <= 0)
+        {
+            loginfo("Client input string length <= 0");
+            return TRUE;
+        }
+        if(nInputLen > MAX_REQ_STR)
         nInputLen = MAX_REQ_STR;
+    }
     
     switch(mid)
     {
@@ -422,7 +432,7 @@ BOOL fHandleCliRequest(int mid, int msgSize, void *pvMessage,
             break;
             
         case MSG_CS_LOGOUT:
-            return fClientLogout();
+            return fClientLogout(ppvCliPacket, pnCliPacketSize);
     }
     
     if(pbOutput == NULL || nOutputLen <= 0 || nOutputLen > MAX_REQ_STR)
@@ -440,7 +450,11 @@ BOOL fHandleCliRequest(int mid, int msgSize, void *pvMessage,
     else
     {
         memset(szOutput, 0, sizeof(szOutput));
-        strcpy(szOutput, pbOutput);
+        memcpy(szOutput, pbOutput, nOutputLen);
+        
+        loginfo("Op query %d : \"%s\"", nInputLen, pbInput);
+        loginfo("Op result %d: \"%s\"", nOutputLen, szOutput);
+        
         // success message
         if((pvSendPacket = pvConstructPacket(MSG_SC_OP_SUCCESS, szOutput, sizeof(szOutput), 
                 pbSKey, CRYPT_KEY_SIZE_BYTES,
@@ -465,8 +479,11 @@ BOOL fHandleCliRequest(int mid, int msgSize, void *pvMessage,
 }// fHandleCliRequest()
 
 
-BOOL fClientLogout()
+BOOL fClientLogout(void **ppvCliPacket, int *pnCliPacketSize)
 {
+    ASSERT(ppvCliPacket);
+    ASSERT(pnCliPacketSize);
+    
     loginfo("Client %s wants to logout", clientIP);
     if(!fConstSendAnodePacket(clientIP, MSG_SA_CLI_TERM, NULL, 0))
         return FALSE;
@@ -476,6 +493,9 @@ BOOL fClientLogout()
     if(pbSKey) vSecureFree(pbSKey);
     if(pbSHMACKey) vSecureFree(pbSHMACKey);
     pbSKey = pbSHMACKey = NULL;
+    
+    *ppvCliPacket = NULL;
+    *pnCliPacketSize = 0;
     return TRUE;
     
 }// fClientLogout()
@@ -559,5 +579,8 @@ static BOOL fRecvBuffer(int *piError)
 static void vFreePlainTextBuffer(void **pvMessageContents)
 {
     if(pvMessageContents && *pvMessageContents)
+    {
         free((*pvMessageContents) - sizeof(int) - sizeof(int));
+        *pvMessageContents = NULL;
+    }
 }

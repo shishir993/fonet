@@ -9,8 +9,6 @@
 #include "scomm.h"
 
 #include "../common/cutils.h"
-#include "../common/hashtable.h"
-#include "../common/queue.h"
 
 
 #define FILE_SECRET_KEY     "../etc/an_secretkey.dat"
@@ -32,11 +30,12 @@ BYTE *g_pbANSecretKey;
 // functions
 static BOOL fCmdLineArgs(int nArgs, char **aszArgs);
 static BOOL fDoLoadGenKeys();
+static BOOL fLoadCliKeys();
 static BOOL fLoadSecretKeyFile();
 static void vDumpKeys();
 
 
-/*
+/**
  * 
  */
 int main(int argc, char** argv)
@@ -69,6 +68,19 @@ int main(int argc, char** argv)
         if(!fStartClientListen(&iCliSocket))
         { retVal = ERR_SOCKET; goto fend; }
         
+        if(!fLoadCliKeys())
+        { 
+            logwarn("Could not load client shared key file");
+            retVal = ERR_SOCKET; goto fend; 
+        }
+        
+#ifdef _DEBUG
+    printf("Client shared key:");
+    vPrintBytes(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
+    printf("Client HMAC key  : ");
+    vPrintBytes(g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES);
+#endif
+        
         // call comm_handler
         fCliCommHandler(iCliSocket);
         
@@ -90,17 +102,10 @@ int main(int argc, char** argv)
 
 static BOOL fDoLoadGenKeys()
 {   
-    // first, load the shared keys: anode-server key AND anode-client key
+    // first, load the shared keys: anode-server key
     
     if(!fLoadSharedKeyFile(AS_SK_FILE, &g_pServerSK))
     { logwarn("Could not load AS shared key file"); goto error_return; }
-    
-    if(!fLoadSharedKeyFile(CA_SK_FILE, &g_pCliSharedKey))
-    { logwarn("Could not load AC shared key file"); goto error_return; }
-    
-    // generate HMAC keys for each
-    if((g_pbCliHMACKey = pbGenHMACKey(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
-    { logwarn("Could not generate client HMAC key"); goto error_return; }
     
     if((g_pbServerHMACKey = pbGenHMACKey(g_pServerSK->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
     { logwarn("Could not generate server HMAC key"); goto error_return; }
@@ -112,12 +117,28 @@ static BOOL fDoLoadGenKeys()
     
     error_return:
     if(g_pServerSK) vSecureFree(g_pServerSK);
-    if(g_pCliSharedKey) vSecureFree(g_pCliSharedKey);
-    if(g_pbCliHMACKey) vSecureFree(g_pbCliHMACKey);
     if(g_pbServerHMACKey) vSecureFree(g_pbServerHMACKey);
     return FALSE;
 
 }// fDoLoadGenKeys()
+
+
+static BOOL fLoadCliKeys()
+{
+    if(!fLoadSharedKeyFile(CA_SK_FILE, &g_pCliSharedKey))
+    { logwarn("Could not load AC shared key file"); goto error_return; }
+    
+    // generate HMAC keys for each
+    if((g_pbCliHMACKey = pbGenHMACKey(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    { logwarn("Could not generate client HMAC key"); goto error_return; }
+    
+    return TRUE;
+    
+    error_return:
+    if(g_pCliSharedKey) vSecureFree(g_pCliSharedKey);
+    if(g_pbCliHMACKey) vSecureFree(g_pbCliHMACKey);
+    return FALSE;
+}
 
 
 static void vDumpKeys()
@@ -128,11 +149,6 @@ static void vDumpKeys()
     vPrintBytes(g_pServerSK->abKey, CRYPT_KEY_SIZE_BYTES);
     printf("Server HMAC key  : ");
     vPrintBytes(g_pbServerHMACKey, CRYPT_KEY_SIZE_BYTES);
-    
-    printf("Client shared key:");
-    vPrintBytes(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
-    printf("Client HMAC key  : ");
-    vPrintBytes(g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES);
 
     printf("Anode secret key : ");
     vPrintBytes(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES);

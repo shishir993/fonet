@@ -49,6 +49,8 @@ static void vFreePlainTextBuffer(void **pvMessageContents);
 
 BOOL fCreateAccessToken(const char *pszClientIP, const char *pszServerIP,
         ATOKEN *pATokenOut);
+BOOL fIsValidAccessToken(const char *pszClientIP, const char *pszServerIP, ATOKEN *patoken);
+
 BOOL fConstSendServerPacket(const char *pszClientIP, int mid, void *pvCliPacket, int nCliPacketSize);
 BOOL fConstSendClientPacket(int mid, void *pvServPacket, int nServPacketSize);
 
@@ -223,16 +225,16 @@ BOOL fCliCommHandler(int iCliSocket)
                 state = CHS_DATA_FORWARD;
                 break;
                 
-            case CHS_TERMINATE:
-                if(!fTerminateConn())
-                    fError = TRUE;
-                fDone = TRUE;
-                break;
-                
             case CHS_DATA_FORWARD:
                 if(!fDoDataForward())
                     fError = TRUE;
                 state = CHS_TERMINATE;
+                break;
+                
+            case CHS_TERMINATE:
+                if(!fTerminateConn())
+                    fError = TRUE;
+                fDone = TRUE;
                 break;
                 
             default: 
@@ -673,11 +675,12 @@ static BOOL fBeginSession(void *pvCliPacket, int nCliPacketSize, void *pvToFree)
 static BOOL fDoDataForward()
 {
     int iRetVal = 0;
-    void *pvOuterPacket = NULL;
-    int nOuterPacketSize = 0;
     
     int mid, msgSize;
     void *pvInnerPacket = NULL;
+    
+    ATOKEN *patoken = NULL;
+    
     
     while(1)
     {
@@ -706,9 +709,20 @@ static BOOL fDoDataForward()
             continue;
         }
         
+        // verify accesstoken
+        patoken = pvInnerPacket+INET_ADDRSTRLEN;
+        if(!fIsValidAccessToken(lg_szClientIP, lg_szServerIP,
+                patoken))
+        {
+            logwarn("Invalid accesstoken sent. Will terminate connection.");
+            break;
+        }
+        
+        loginfo("Valid accesstoken expires %s", ctime(&patoken->tvExpiry.tv_sec));
+        
         // construct server packet and send
         if(!fConstSendServerPacket(lg_szClientIP, MSG_AS_CLI_REQ, 
-                pvInnerPacket+INET_ADDRSTRLEN, msgSize-INET_ADDRSTRLEN))
+                pvInnerPacket+INET_ADDRSTRLEN+sizeof(ATOKEN), msgSize-INET_ADDRSTRLEN-sizeof(ATOKEN)))
         {
             logwarn("Could not forward request to server");
             vFreePlainTextBuffer(&pvInnerPacket);
@@ -730,7 +744,12 @@ static BOOL fDoDataForward()
             continue;
         }
         
-        if(mid != MSG_SA_CLI_DATA)
+        if(mid == MSG_SA_CLI_TERM)
+        {
+            loginfo("Server said client %s wants to terminate session", (char*)pvInnerPacket);
+            break;
+        }
+        else if(mid != MSG_SA_CLI_DATA)
         {
             logwarn("Invalid msg from server %d", mid);
             vFreePlainTextBuffer(&pvInnerPacket);
@@ -747,9 +766,11 @@ static BOOL fDoDataForward()
         vFreePlainTextBuffer(&pvInnerPacket);
     }
     
+    vFreePlainTextBuffer(&pvInnerPacket);
     return TRUE;
     
     error_return:
+    vFreePlainTextBuffer(&pvInnerPacket);
     return FALSE;
 }
 
@@ -758,18 +779,23 @@ static BOOL fTerminateConn()
 {
     close(lg_iClientSocket);
     lg_iClientSocket = -1;
-    return TRUE;
     
-    error_return:
-    return FALSE;
+    fDoCleanUp();
+    
+    return TRUE;
 }
 
 
 static BOOL fDoCleanUp()
 {
+    if(g_pbCliSessionKey) vSecureFree(g_pbCliSessionKey);
+    if(g_pbCliSessionHMACKey) vSecureFree(g_pbCliSessionHMACKey);
     
-    error_return:
-    return FALSE;
+    if(g_pCliSharedKey) vSecureFree(g_pCliSharedKey);
+    if(g_pbCliHMACKey) vSecureFree(g_pbCliHMACKey);
+    
+    g_pCliSharedKey = NULL;
+    g_pbCliSessionKey = g_pbCliSessionHMACKey = g_pbCliHMACKey = NULL;
 }
 
 
@@ -800,14 +826,17 @@ static BOOL fRecvBuffer(int *piError)
 static void vFreePlainTextBuffer(void **pvMessageContents)
 {
     if(pvMessageContents && *pvMessageContents)
+    {
         free((*pvMessageContents) - sizeof(int) - sizeof(int));
+        *pvMessageContents = NULL;
+    }
 }
 
 
 BOOL fCreateAccessToken(const char *pszClientIP, const char *pszServerIP,
         ATOKEN *pATokenOut)
 {
-    ASSERT(pszClientIP && pszServerIP);
+    ASSERT(pszClientIP && pszServerIP && pATokenOut);
     
     int nSize;
     
@@ -852,9 +881,77 @@ BOOL fCreateAccessToken(const char *pszClientIP, const char *pszServerIP,
         return FALSE;
     }
     
+    free(pbToBeHashed);
     return TRUE;
             
 }// pCreateAccessToken()
+
+
+BOOL fIsValidAccessToken(const char *pszClientIP, const char *pszServerIP, ATOKEN *patoken)
+{
+    ASSERT(pszClientIP && pszServerIP && patoken);
+    
+    int nSize;
+    BYTE *pbToBeHashed = NULL;
+    
+    ATOKEN tokenNow;
+    struct timeval tvNow;
+    
+    
+    memset(&tokenNow, 0, sizeof(tokenNow));
+    
+    int cliLen = strlen(pszClientIP);
+    int serLen = strlen(pszServerIP);
+    
+    ASSERT(cliLen > 0 && cliLen <= INET_ADDRSTRLEN);
+    ASSERT(serLen > 0 && serLen <= INET_ADDRSTRLEN);
+    
+    memcpy(&tokenNow.tvExpiry, &patoken->tvExpiry, sizeof(struct timeval));
+    nSize = cliLen + serLen + sizeof(struct timeval);
+    if((pbToBeHashed = (BYTE*)malloc(nSize)) == NULL)
+    {
+        logerr("fIsValidAccessToken(): malloc() ");
+        return FALSE;
+    }
+    
+    memcpy(pbToBeHashed, pszClientIP, cliLen);
+    memcpy(pbToBeHashed+cliLen, pszServerIP, serLen);
+    memcpy(pbToBeHashed+cliLen+serLen, &tokenNow.tvExpiry, sizeof(struct timeval));
+    
+    if(!fGetHMAC(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES,
+            pbToBeHashed, nSize, 
+            &tokenNow.abHmacCSIPTime, CRYPT_HASH_SIZE_BYTES,
+            NULL))
+    {
+        logwarn("fIsValidAccessToken(): Unable to generate hash");
+        goto token_invalid;
+    }
+    
+    free(pbToBeHashed); pbToBeHashed = NULL;
+    
+    if(!fCompareBytes(tokenNow.abHmacCSIPTime, CRYPT_HASH_SIZE_BYTES,
+            patoken->abHmacCSIPTime, CRYPT_HASH_SIZE_BYTES))
+    {
+        logwarn("Client %s, Server %s, Invalid token!", pszClientIP, pszServerIP);
+        goto token_invalid;
+    }
+    
+    if(gettimeofday(&tvNow, NULL) == -1)
+    {
+        logerr("fIsValidAccessToken(): gettimeofday() ");
+        goto token_invalid;
+    }
+    
+    if(patoken->tvExpiry.tv_sec < tvNow.tv_sec)
+        goto token_invalid;
+    
+    return TRUE;
+    
+    
+    token_invalid:
+    if(pbToBeHashed) free(pbToBeHashed);
+    return FALSE;
+}
 
 
 BOOL fConstSendServerPacket(const char *pszClientIP, int mid, void *pvCliPacket, int nCliPacketSize)

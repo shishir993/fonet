@@ -18,11 +18,11 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
+      <itemPath>amain.c</itemPath>
       <itemPath>../common/assert.c</itemPath>
       <itemPath>clihandler.c</itemPath>
       <itemPath>../common/cutils.c</itemPath>
       <itemPath>../common/helpers.c</itemPath>
-      <itemPath>main.c</itemPath>
       <itemPath>../common/packet_exchange.c</itemPath>
       <itemPath>scomm.c</itemPath>
     </logicalFolder>
@@ -78,13 +78,13 @@
       </item>
       <item path="../common/sdbg.h" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="amain.c" ex="false" tool="0" flavor2="0">
+      </item>
       <item path="aninclude.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="clihandler.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="clihandler.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="main.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="scomm.c" ex="false" tool="0" flavor2="0">
       </item>
@@ -136,13 +136,13 @@
       </item>
       <item path="../common/sdbg.h" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="amain.c" ex="false" tool="0" flavor2="0">
+      </item>
       <item path="aninclude.h" ex="false" tool="3" flavor2="0">
       </item>
       <item path="clihandler.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="clihandler.h" ex="false" tool="3" flavor2="0">
-      </item>
-      <item path="main.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="scomm.c" ex="false" tool="0" flavor2="0">
       </item>

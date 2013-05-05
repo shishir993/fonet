@@ -40,7 +40,7 @@ OBJECTFILES= \
 	${OBJECTDIR}/_ext/1270477542/helpers.o \
 	${OBJECTDIR}/_ext/1270477542/packet_exchange.o \
 	${OBJECTDIR}/keys.o \
-	${OBJECTDIR}/main.o
+	${OBJECTDIR}/smain.o
 
 
 # C Compiler Flags
@@ -92,10 +92,10 @@ ${OBJECTDIR}/keys.o: keys.c
 	${RM} $@.d
 	$(COMPILE.c) -g -Wall -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/keys.o keys.c
 
-${OBJECTDIR}/main.o: main.c 
+${OBJECTDIR}/smain.o: smain.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
-	$(COMPILE.c) -g -Wall -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.c
+	$(COMPILE.c) -g -Wall -D_DEBUG `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/smain.o smain.c
 
 # Subprojects
 .build-subprojects:

@@ -16,9 +16,9 @@
                    displayName="Source Files"
                    projectFiles="true">
       <itemPath>../common/assert.c</itemPath>
+      <itemPath>cmain.c</itemPath>
       <itemPath>../common/cutils.c</itemPath>
       <itemPath>../common/helpers.c</itemPath>
-      <itemPath>main.c</itemPath>
       <itemPath>../common/packet_exchange.c</itemPath>
     </logicalFolder>
     <logicalFolder name="TestFiles"
@@ -73,7 +73,7 @@
       </item>
       <item path="../common/sdbg.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="main.c" ex="false" tool="0" flavor2="0">
+      <item path="cmain.c" ex="false" tool="0" flavor2="0">
       </item>
     </conf>
     <conf name="Release" type="1">
@@ -121,7 +121,7 @@
       </item>
       <item path="../common/sdbg.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="main.c" ex="false" tool="0" flavor2="0">
+      <item path="cmain.c" ex="false" tool="0" flavor2="0">
       </item>
     </conf>
   </confs>

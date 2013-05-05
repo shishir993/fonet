@@ -39,8 +39,8 @@ OBJECTFILES= \
 	${OBJECTDIR}/_ext/1270477542/cutils.o \
 	${OBJECTDIR}/_ext/1270477542/helpers.o \
 	${OBJECTDIR}/_ext/1270477542/packet_exchange.o \
+	${OBJECTDIR}/amain.o \
 	${OBJECTDIR}/clihandler.o \
-	${OBJECTDIR}/main.o \
 	${OBJECTDIR}/scomm.o
 
 
@@ -88,15 +88,15 @@ ${OBJECTDIR}/_ext/1270477542/packet_exchange.o: ../common/packet_exchange.c
 	${RM} $@.d
 	$(COMPILE.c) -O2 `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/_ext/1270477542/packet_exchange.o ../common/packet_exchange.c
 
+${OBJECTDIR}/amain.o: amain.c 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} $@.d
+	$(COMPILE.c) -O2 `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/amain.o amain.c
+
 ${OBJECTDIR}/clihandler.o: clihandler.c 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
 	$(COMPILE.c) -O2 `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/clihandler.o clihandler.c
-
-${OBJECTDIR}/main.o: main.c 
-	${MKDIR} -p ${OBJECTDIR}
-	${RM} $@.d
-	$(COMPILE.c) -O2 `libgcrypt-config --cflags` -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.c
 
 ${OBJECTDIR}/scomm.o: scomm.c 
 	${MKDIR} -p ${OBJECTDIR}
