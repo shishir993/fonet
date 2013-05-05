@@ -26,5 +26,8 @@
 BOOL fStartClientListen(int *piCliSocket);
 BOOL fCliCommHandler(int iCliSocket);
 
+static BOOL fLoadTokensFromFile();
+
+
 #endif	/* _CLIHANDLER_H */
 

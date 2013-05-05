@@ -1,25 +1,43 @@
 
+#include <sys/time.h>
+
 #include "clihandler.h"
 #include "scomm.h"
+
+
+#define MAX_TOKENS  32
+#define FILE_TOKEN  "../etc/anode_tokens.dat"
+
+#define SECS_PER_DAY    86400   // (60*60*24)
 
 
 extern int g_nListenPort;
 extern SHARED_KEY  *g_pCliSharedKey;    // to store client-accessnode shared keys
 extern BYTE *g_pbCliHMACKey;            // hmac key for client: hash(cli shared key)
+extern BYTE *g_pbANSecretKey;
+extern SHARED_KEY  *g_pServerSK;       // pointer to accessnode-server shared key
+extern BYTE *g_pbServerHMACKey;        // hmac key for server: hash(serv shared key)
+
+static BYTE *g_pbCliSessionKey;
+static BYTE *g_pbCliSessionHMACKey;
 
 static int lg_iClientSocket;
-static char lg_szClientIP[INET_ADDRSTRLEN+1];
+static char lg_szClientIP[INET_ADDRSTRLEN];
+static char lg_szServerIP[INET_ADDRSTRLEN];
 
 static BYTE lg_abSRBuffer[SR_BUFSIZE];
+
+
 
 
 // File-local functions
 static BOOL fWaitForHello();
 static BOOL fDoHandshake();
 static BOOL fWaitForLogin(void **ppvLoginCred, int *piLCSize);
-static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize);
+static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize,
+        void **ppvCliPacketOut, int *pnCliPacketSizeOut, void **ppvToFree);
 static BOOL fHandleClientLoginFail();
-static BOOL fBeginSession();
+static BOOL fBeginSession(void *pvCliPacket, int nCliPacketSize, void *pvToFree);
 static BOOL fDoDataForward();
 static BOOL fTerminateConn();
 static BOOL fDoCleanUp();
@@ -29,6 +47,10 @@ static BOOL fSendBuffer(int *piError);
 static BOOL fRecvBuffer(int *piError);
 static void vFreePlainTextBuffer(void **pvMessageContents);
 
+BOOL fCreateAccessToken(const char *pszClientIP, const char *pszServerIP,
+        ATOKEN *pATokenOut);
+BOOL fConstSendServerPacket(const char *pszClientIP, int mid, void *pvCliPacket, int nCliPacketSize);
+BOOL fConstSendClientPacket(int mid, void *pvServPacket, int nServPacketSize);
 
 /**
  * 
@@ -120,6 +142,7 @@ BOOL fStartClientListen(int *piCliSocket)
         }// if FD_SET
     }// while(1)
     
+    memset(lg_szClientIP, 0, sizeof(lg_szClientIP));
     if( inet_ntop(AF_INET, &saClientAddr.sin_addr, lg_szClientIP, sizeof(lg_szClientIP)) == NULL )
     {
         logerr("inet_ntop() ");
@@ -152,6 +175,10 @@ BOOL fCliCommHandler(int iCliSocket)
     void *pvLC = NULL;
     int lcSize = 0;
     
+    void *pvToFree = NULL;
+    void *pvSkey = NULL;
+    int nSkeySize = 0;
+    
     
     lg_iClientSocket = iCliSocket;
     
@@ -178,8 +205,10 @@ BOOL fCliCommHandler(int iCliSocket)
                 break;
                 
             case CHS_SERV_WAIT:
-                if(!fWaitForServerApproval(&state, pvLC, lcSize))
+                if(!fWaitForServerApproval(&state, pvLC, lcSize,
+                        &pvSkey, &nSkeySize, &pvToFree))
                     fError = TRUE;
+                // state is set inside the function
                 break;
                 
             case CHS_CLI_LOGIN_FAILED:
@@ -189,7 +218,7 @@ BOOL fCliCommHandler(int iCliSocket)
                 break;
                 
             case CHS_BEGIN_SESSION:
-                if(!fBeginSession())
+                if(!fBeginSession(pvSkey, nSkeySize, pvToFree))
                     fError = TRUE;
                 state = CHS_DATA_FORWARD;
                 break;
@@ -198,6 +227,12 @@ BOOL fCliCommHandler(int iCliSocket)
                 if(!fTerminateConn())
                     fError = TRUE;
                 fDone = TRUE;
+                break;
+                
+            case CHS_DATA_FORWARD:
+                if(!fDoDataForward())
+                    fError = TRUE;
+                state = CHS_TERMINATE;
                 break;
                 
             default: 
@@ -407,9 +442,16 @@ static BOOL fWaitForLogin(void **ppvLoginCred, int *piLCSize)
         logwarn("Client's login cred message size invalid: %d", msgSize);
         goto error_return;
     }
+
+    *ppvLoginCred = pvMessage+INET_ADDRSTRLEN;
+    *piLCSize = msgSize-INET_ADDRSTRLEN;
     
-    ppvLoginCred = pvMessage;
-    *piLCSize = msgSize;
+    // check the server IP
+    memcpy(lg_szServerIP, pvMessage, INET_ADDRSTRLEN);
+    loginfo("Client wants to connect with %s", lg_szServerIP);
+    loginfo("Client login_cred packet(%d): ", msgSize-INET_ADDRSTRLEN);
+    vPrintBytes(*ppvLoginCred, msgSize-INET_ADDRSTRLEN);
+
     return TRUE;
     
     error_return:
@@ -428,10 +470,13 @@ static BOOL fWaitForLogin(void **ppvLoginCred, int *piLCSize)
  * @param lcSize
  * @return FALSE if an error occurs, TRUE otherwise
  */
-static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize)
+static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize,
+        void **ppvCliPacketOut, int *pnCliPacketSizeOut, void **ppvToFree)
 {
     ASSERT(pistate && pvLoginCred);
     ASSERT(lcSize > CRYPT_HASH_SIZE_BYTES);
+    ASSERT(ppvCliPacketOut);
+    ASSERT(pnCliPacketSizeOut);
     
     BYTE *pbMsgContent = NULL;
     int nMsgSize = 0;
@@ -446,7 +491,7 @@ static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize)
     int iRetVal = 0;
     
     
-    nMsgSize = sizeof(lg_szClientIP) + lcSize;
+    nMsgSize = INET_ADDRSTRLEN + lcSize;
     if((pbMsgContent = (BYTE*)malloc(nMsgSize)) == NULL)
     {
         logerr("fWaitForServerApproval(): malloc() ");
@@ -454,13 +499,14 @@ static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize)
     }
     
     // send client's IP and login credentials
-    memcpy(pbMsgContent, lg_szClientIP, sizeof(lg_szClientIP));
-    memcpy(pbMsgContent+sizeof(lg_szClientIP), pvLoginCred, lcSize);
+    memset(pbMsgContent, 0, nMsgSize);
+    memcpy(pbMsgContent, lg_szClientIP, strlen(lg_szClientIP));
+    memcpy(pbMsgContent+INET_ADDRSTRLEN, pvLoginCred, lcSize);
     
     // create a packet
     if((pvSendPacket = pvConstructPacket(MSG_AS_CLI_AUTH, pbMsgContent, nMsgSize,
-            g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES,
-            g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES,
+            g_pServerSK->abKey, CRYPT_KEY_SIZE_BYTES,
+            g_pbServerHMACKey, CRYPT_KEY_SIZE_BYTES,
             &nSendPacketSize)) == NULL)
     {
         logwarn("Unable to create login cred packet!");
@@ -474,12 +520,16 @@ static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize)
         goto error_return;
     
     free(pvSendPacket); pvSendPacket = NULL;
+    free(pbMsgContent); pbMsgContent = NULL;
     
     // wait for server's accept/reject
     if(!fRecvFromServer(lg_abSRBuffer, sizeof(lg_abSRBuffer)))
         goto error_return;
     
-    if(!fDeconstructPacket(g_pCliSharedKey->abKey, g_pbCliHMACKey, 
+    logdbg("Anode Packet: ");
+    vPrintBytes(lg_abSRBuffer, sizeof(lg_abSRBuffer));
+    
+    if(!fDeconstructPacket(g_pServerSK->abKey, g_pbServerHMACKey, 
             lg_abSRBuffer, sizeof(lg_abSRBuffer),
             &mid, &msgSize, &pvMessage))
     {
@@ -489,24 +539,41 @@ static BOOL fWaitForServerApproval(int *pistate, void *pvLoginCred, int lcSize)
     
     if(mid == MSG_SA_CLI_ACCEPT)
     {
+        char *psz = (char*)pvMessage;
+        *ppvCliPacketOut = pvMessage + INET_ADDRSTRLEN;
+        *pnCliPacketSizeOut = msgSize - INET_ADDRSTRLEN;
+        *ppvToFree = pvMessage;
+        logdbg("Skey %p %d", *ppvCliPacketOut, *pnCliPacketSizeOut);
         *pistate = CHS_BEGIN_SESSION;
-        loginfo("Server accepted client's login");
+        loginfo("Server accepted client's (%s) login", psz);
+
+        logdbg("Client packet(%d):", *pnCliPacketSizeOut);
+        vPrintBytes(pvMessage + INET_ADDRSTRLEN, *pnCliPacketSizeOut);
     }
     else if(mid == MSG_SA_CLI_REJECT)
     {
+        char *psz = (char*)pvMessage;
+        *ppvCliPacketOut = NULL;
+        *pnCliPacketSizeOut = 0;
         *pistate = CHS_CLI_LOGIN_FAILED;
-        loginfo("Server rejected client's login");
+        loginfo("Server rejected client's (%s) login", psz);
+        
+        vFreePlainTextBuffer(&pvMessage);
     }
     else
     {
         logwarn("Invalid message ID from server: %d", mid);
+        *ppvCliPacketOut = NULL;
+        *pnCliPacketSizeOut = 0;
+        
+        vFreePlainTextBuffer(&pvMessage);
         goto error_return;
     }
     
-    free(pvMessage-sizeof(int)-sizeof(int));
     return TRUE;
     
     error_return:
+    vFreePlainTextBuffer(&pvMessage);
     if(pvSendPacket) free(pvSendPacket);
     return FALSE;
 
@@ -524,8 +591,79 @@ static BOOL fHandleClientLoginFail()
 }
 
 
-static BOOL fBeginSession()
+static BOOL fBeginSession(void *pvCliPacket, int nCliPacketSize, void *pvToFree)
 {
+    ASSERT(pvCliPacket && nCliPacketSize > CRYPT_HASH_SIZE_BYTES);
+    ASSERT(pvToFree);
+
+    int iRetVal = 0;
+    ATOKEN atoken;
+    
+    void *pvMessage = NULL;
+    void *pvSendPacket = NULL;
+    
+    int nTotalMessageSize = 0;
+    int nSendPacketSize = 0;
+    
+    // create access token
+    if(!fCreateAccessToken(lg_szClientIP, lg_szServerIP, &atoken))
+    {
+        logwarn("Unable to create access token!");
+        goto error_return;
+    }
+    
+    // create session key
+    if(!fSecureAlloc(CRYPT_KEY_SIZE_BYTES, (void**)&g_pbCliSessionKey))
+    { logwarn("securealloc() error for session key"); goto error_return; }
+    
+    gcry_create_nonce((void*)g_pbCliSessionKey, CRYPT_KEY_SIZE_BYTES);
+    
+    // generate session HMAC key
+    if((g_pbCliSessionHMACKey = pbGenHMACKey(g_pbCliSessionKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
+    {
+        logwarn("Could not generate session HMAC key!");
+        goto error_return;
+    }
+    
+    logdbg("Client session key: ");
+    vPrintBytes(g_pbCliSessionKey, CRYPT_KEY_SIZE_BYTES);
+    logdbg("Client session HMAC key: ");
+    vPrintBytes(g_pbCliSessionHMACKey, CRYPT_KEY_SIZE_BYTES);
+    
+    // create a packet: MSG_AC_SESS_EST + akey + atoken + servMsg
+    nTotalMessageSize = CRYPT_KEY_SIZE_BYTES + sizeof(atoken) + nCliPacketSize;
+    if((pvMessage = malloc(nTotalMessageSize)) == NULL)
+    { logerr("fBeginSession(): malloc() "); goto error_return; }
+    
+    memcpy(pvMessage, g_pbCliSessionKey, CRYPT_KEY_SIZE_BYTES);
+    memcpy(pvMessage+CRYPT_KEY_SIZE_BYTES, &atoken, sizeof(atoken));
+    memcpy(pvMessage+CRYPT_KEY_SIZE_BYTES+sizeof(atoken), pvCliPacket, nCliPacketSize);
+
+    if((pvSendPacket = pvConstructPacket(MSG_AC_SESS_EST, pvMessage, nTotalMessageSize,
+            g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES,
+            g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES,
+            &nSendPacketSize)) == NULL )
+    {
+        logwarn("Unable to create atoken packet!");
+        goto error_return;
+    }
+    
+    vWriteToBuffer(pvSendPacket, nSendPacketSize);
+    
+    free(pvMessage); pvMessage = NULL;
+    free(pvSendPacket); pvSendPacket = NULL;
+    vFreePlainTextBuffer(&pvToFree);
+    
+    if(!fSendBuffer(&iRetVal))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            loginfo("Client closed connection unexpectedly!");
+        else
+            loginfo("Failed to send atoken packet (%s)", strerror(iRetVal));
+        goto error_return;
+    }
+    
+    return TRUE;
     
     error_return:
     return FALSE;
@@ -534,6 +672,82 @@ static BOOL fBeginSession()
 
 static BOOL fDoDataForward()
 {
+    int iRetVal = 0;
+    void *pvOuterPacket = NULL;
+    int nOuterPacketSize = 0;
+    
+    int mid, msgSize;
+    void *pvInnerPacket = NULL;
+    
+    while(1)
+    {
+        loginfo("Waiting for data from client");
+        if(!fRecvBuffer(&iRetVal))
+        {
+            if(iRetVal == ERR_SOCKET_DOWN)
+                loginfo("Client closed connection unexpectedly!");
+            else
+                loginfo("Failed to receive data packet (%s)", strerror(iRetVal));
+            goto error_return;
+        }
+        
+        if(!fDeconstructPacket(g_pbCliSessionKey, g_pbCliSessionHMACKey, 
+                lg_abSRBuffer, sizeof(lg_abSRBuffer), 
+                &mid, &msgSize, &pvInnerPacket))
+        {
+            logwarn("Failed to deconstruct outer packet from client");
+            continue;
+        }
+        
+        if(mid != MSG_CA_SERV_DATA)
+        {
+            logwarn("Invalid msg from client %d", mid);
+            vFreePlainTextBuffer(&pvInnerPacket);
+            continue;
+        }
+        
+        // construct server packet and send
+        if(!fConstSendServerPacket(lg_szClientIP, MSG_AS_CLI_REQ, 
+                pvInnerPacket+INET_ADDRSTRLEN, msgSize-INET_ADDRSTRLEN))
+        {
+            logwarn("Could not forward request to server");
+            vFreePlainTextBuffer(&pvInnerPacket);
+            continue;
+        }
+        
+        vFreePlainTextBuffer(&pvInnerPacket);
+        
+        // wait for reply from server
+        if(!fRecvFromServer(lg_abSRBuffer, sizeof(lg_abSRBuffer)))
+            goto error_return;
+        
+        // deconstruct it
+        if(!fDeconstructPacket(g_pServerSK->abKey, g_pbServerHMACKey, 
+                lg_abSRBuffer, sizeof(lg_abSRBuffer), 
+                &mid, &msgSize, &pvInnerPacket))
+        {
+            logwarn("Failed to deconstruct outer packet from server");
+            continue;
+        }
+        
+        if(mid != MSG_SA_CLI_DATA)
+        {
+            logwarn("Invalid msg from server %d", mid);
+            vFreePlainTextBuffer(&pvInnerPacket);
+            continue;
+        }
+        
+        // construct server packet and send
+        if(!fConstSendClientPacket(MSG_AC_SERV_DATA, pvInnerPacket+INET_ADDRSTRLEN, msgSize-INET_ADDRSTRLEN))
+        {
+            logwarn("Could not forward serv data to client");
+            continue;
+        }
+        
+        vFreePlainTextBuffer(&pvInnerPacket);
+    }
+    
+    return TRUE;
     
     error_return:
     return FALSE;
@@ -542,6 +756,9 @@ static BOOL fDoDataForward()
 
 static BOOL fTerminateConn()
 {
+    close(lg_iClientSocket);
+    lg_iClientSocket = -1;
+    return TRUE;
     
     error_return:
     return FALSE;
@@ -584,4 +801,145 @@ static void vFreePlainTextBuffer(void **pvMessageContents)
 {
     if(pvMessageContents && *pvMessageContents)
         free((*pvMessageContents) - sizeof(int) - sizeof(int));
+}
+
+
+BOOL fCreateAccessToken(const char *pszClientIP, const char *pszServerIP,
+        ATOKEN *pATokenOut)
+{
+    ASSERT(pszClientIP && pszServerIP);
+    
+    int nSize;
+    
+    BYTE *pbToBeHashed = NULL;
+    
+    memset(pATokenOut, 0, sizeof(ATOKEN));
+    
+    int cliLen = strlen(pszClientIP);
+    int serLen = strlen(pszServerIP);
+    
+    ASSERT(cliLen > 0 && cliLen <= INET_ADDRSTRLEN);
+    ASSERT(serLen > 0 && serLen <= INET_ADDRSTRLEN);
+    
+    if(gettimeofday(&pATokenOut->tvExpiry, NULL) == -1)
+    {
+        logerr("gettimeofday() ");
+        return FALSE;
+    }
+    pATokenOut->tvExpiry.tv_sec = pATokenOut->tvExpiry.tv_sec + SECS_PER_DAY;
+    pATokenOut->tvExpiry.tv_usec = 0;
+    
+    loginfo("Accesstoken expires %s", ctime(&pATokenOut->tvExpiry.tv_sec));
+    
+    nSize = cliLen + serLen + sizeof(struct timeval);
+    if((pbToBeHashed = (BYTE*)malloc(nSize)) == NULL)
+    {
+        logerr("malloc() ");
+        return FALSE;
+    }
+    
+    memcpy(pbToBeHashed, pszClientIP, cliLen);
+    memcpy(pbToBeHashed+cliLen, pszServerIP, serLen);
+    memcpy(pbToBeHashed+cliLen+serLen, &pATokenOut->tvExpiry, sizeof(struct timeval));
+    
+    if(!fGetHMAC(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES,
+            pbToBeHashed, nSize, 
+            pATokenOut->abHmacCSIPTime, CRYPT_HASH_SIZE_BYTES,
+            NULL))
+    {
+        logwarn("Unable to generate hash");
+        free(pbToBeHashed);
+        return FALSE;
+    }
+    
+    return TRUE;
+            
+}// pCreateAccessToken()
+
+
+BOOL fConstSendServerPacket(const char *pszClientIP, int mid, void *pvCliPacket, int nCliPacketSize)
+{
+    ASSERT(pszClientIP);
+    ASSERT(nCliPacketSize == 0 || nCliPacketSize > CRYPT_HASH_SIZE_BYTES);
+    
+    int iRetVal = 0;
+    void *pv = NULL;
+    void *pvServerPacket = NULL;
+    int nMsgSize, nServerPacketSize;
+    
+    
+    nMsgSize = INET_ADDRSTRLEN + nCliPacketSize;
+    if((pv = malloc(nMsgSize)) == NULL)
+    {
+        logerr("fConstSendAnodePacket(): malloc() ");
+        return FALSE;
+    }
+    
+    memcpy(pv, pszClientIP, INET_ADDRSTRLEN);
+    if(pvCliPacket)
+        memcpy(pv+INET_ADDRSTRLEN, pvCliPacket, nCliPacketSize);
+    
+    if((pvServerPacket = pvConstructPacket(mid, pv, nMsgSize, 
+            g_pServerSK->abKey, CRYPT_KEY_SIZE_BYTES,
+            g_pbServerHMACKey, CRYPT_KEY_SIZE_BYTES,
+            &nServerPacketSize)) == NULL)
+    {
+        logwarn("fConstSendAnodePacket(): Could not create packet");
+        goto error_return;
+    }
+    if(!fSendToServer(pvServerPacket, nServerPacketSize))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            loginfo("Server closed socket unexpectedly!");
+        else
+            loginfo("Failed to send data packet (%s)", strerror(iRetVal));
+        goto error_return;
+    }
+    
+    free(pv);
+    free(pvServerPacket);
+    return TRUE;
+    
+    error_return:
+    if(pv) free(pv);
+    if(pvServerPacket) free(pvServerPacket);
+    return FALSE;
+}
+
+
+BOOL fConstSendClientPacket(int mid, void *pvServPacket, int nServPacketSize)
+{
+    ASSERT(nServPacketSize == 0 || nServPacketSize > CRYPT_HASH_SIZE_BYTES);
+    
+    int iRetVal = 0;
+    void *pvClientPacket = NULL;
+    int nClientPacketSize;
+
+
+    if((pvClientPacket = pvConstructPacket(mid, pvServPacket, nServPacketSize, 
+            g_pbCliSessionKey, CRYPT_KEY_SIZE_BYTES,
+            g_pbCliSessionHMACKey, CRYPT_KEY_SIZE_BYTES,
+            &nClientPacketSize)) == NULL)
+    {
+        logwarn("fConstSendClientPacket(): Could not create packet");
+        goto error_return;
+    }
+    
+    vWriteToBuffer(pvClientPacket, nClientPacketSize);
+    free(pvClientPacket); pvClientPacket = NULL;
+    
+    if(!fSendBuffer(&iRetVal))
+    {
+        if(iRetVal == ERR_SOCKET_DOWN)
+            loginfo("Client closed socket unexpectedly!");
+        else
+            loginfo("Failed to send data packet (%s)", strerror(iRetVal));
+        goto error_return;
+    }
+    
+    return TRUE;
+    
+    error_return:
+    if(pvClientPacket) free(pvClientPacket);
+    return FALSE;
 }

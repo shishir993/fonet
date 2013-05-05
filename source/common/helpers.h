@@ -25,4 +25,6 @@ BOOL fDeconstructPacket(BYTE *pbDecryptKey, BYTE *pbHMACKey,
         void *pvPacket, int nPacketSize, 
         int *piMIDOut, int *piMCSizeOut, void **ppvMessageContentsOut);
 
+BOOL fReadLineFromStdin(char *pszBuffer, int nBufLen);
+
 #endif // _HELPERS_H

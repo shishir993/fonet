@@ -104,10 +104,9 @@ void* pvConstructPacket(int mid, void *pMessageContents, int mcSize,
         int *pnPacketSizeOut)
 {
     
-    ASSERT(pMessageContents);
-    ASSERT(mcSize > 0);
     ASSERT(pbKeyEnc && nKeyEncSize == CRYPT_KEY_SIZE_BYTES);
-    ASSERT(pbKeyHash && nKeyHashSize == CRYPT_KEY_SIZE_BYTES);
+    ASSERT(pbKeyHash);
+    ASSERT(nKeyHashSize == CRYPT_KEY_SIZE_BYTES);
     ASSERT(pnPacketSizeOut);
     
     ENC_DATA encData;
@@ -120,8 +119,16 @@ void* pvConstructPacket(int mid, void *pMessageContents, int mcSize,
     
     // first, generate ciphertext
     encData.mid = mid;
-    encData.pvMessageContents = pMessageContents;
-    encData.nMsgContentsSize = mcSize;
+    if(pMessageContents)
+    {
+        encData.pvMessageContents = pMessageContents;
+        encData.nMsgContentsSize = mcSize;
+    }
+    else
+    {
+        encData.pvMessageContents = NULL;
+        encData.nMsgContentsSize = 0;
+    }
     encData.pbKey = pbKeyEnc;
     
     if(!fConstructCipherText(&encData))
@@ -239,7 +246,10 @@ BOOL fDeconstructPacket(BYTE *pbDecryptKey, BYTE *pbHMACKey,
     piDecrypted = pvPlainText;
     *piMIDOut = *piDecrypted;
     *piMCSizeOut = *(piDecrypted+1);
-    *ppvMessageContentsOut = pvPlainText+sizeof(int)+sizeof(int);
+    if(*piMCSizeOut > 0)
+        *ppvMessageContentsOut = pvPlainText+sizeof(int)+sizeof(int);
+    else
+        *ppvMessageContentsOut = NULL;
     return TRUE;
     
     error_return:
@@ -400,7 +410,6 @@ static void* pvCreatePacket(const void *pvMessage, int nMessageSize,
 static BOOL fConstructCipherText(ENC_DATA *pEncData)
 {
     ASSERT(pEncData);
-    ASSERT(pEncData->pvMessageContents && pEncData->nMsgContentsSize > 0);
     ASSERT(pEncData->pbKey);
     
     BOOL fret = TRUE;
@@ -434,8 +443,12 @@ static BOOL fConstructCipherText(ENC_DATA *pEncData)
     *iptr = pEncData->mid;
     ++iptr;
     *iptr = pEncData->nMsgContentsSize;
-    ++iptr;
-    memcpy(iptr, pEncData->pvMessageContents, pEncData->nMsgContentsSize);
+    if(pEncData->pvMessageContents)
+    {
+        ++iptr;
+        memcpy(iptr, pEncData->pvMessageContents, pEncData->nMsgContentsSize);
+    }
+    
     
     /* Now, calculate padded input size and get the 
      * input data padded. This padded input size will
@@ -487,7 +500,35 @@ static BOOL fIsPacketNotTampered(void *pvPacket, int nPacketSize, BYTE *pbHMACKe
     ASSERT(pvPacket);
     ASSERT(nPacketSize > CRYPT_HASH_SIZE_BYTES);
     
+#ifdef _DEBUG
+    loginfo("HMAC: ");
+    vPrintBytes(pvPacket+nPacketSize-CRYPT_HASH_SIZE_BYTES, CRYPT_HASH_SIZE_BYTES);
+#endif
+    
     return fCheckIntegrity(pbHMACKey, pvPacket, nPacketSize-CRYPT_HASH_SIZE_BYTES,
             pvPacket+nPacketSize-CRYPT_HASH_SIZE_BYTES);
     
 }// fIsPacketNotTampered()
+
+
+/**
+ * 
+ * @param pszBuffer
+ * @param nBufLen Includes the terminating NULL character
+ * @return 
+ */
+BOOL fReadLineFromStdin(char *pszBuffer, int nBufLen) 
+{
+    ASSERT(pszBuffer && nBufLen > 0);
+
+    int nlen = 0;
+    char ch;
+
+    if ((ch = getchar()) != '\n')
+        ungetc(ch, stdin);
+
+    while (nlen < nBufLen && (ch = getchar()) != '\n')
+        pszBuffer[nlen++] = ch;
+    pszBuffer[nlen] = 0;
+    return TRUE;
+}

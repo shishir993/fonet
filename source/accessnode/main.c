@@ -13,6 +13,9 @@
 #include "../common/queue.h"
 
 
+#define FILE_SECRET_KEY     "../etc/an_secretkey.dat"
+
+
 // global variables
 struct in_addr g_iaServAddr;
 char *pszServAddrStr;
@@ -29,7 +32,7 @@ BYTE *g_pbANSecretKey;
 // functions
 static BOOL fCmdLineArgs(int nArgs, char **aszArgs);
 static BOOL fDoLoadGenKeys();
-static BOOL fCreateANSecretKey();
+static BOOL fLoadSecretKeyFile();
 static void vDumpKeys();
 
 
@@ -102,7 +105,7 @@ static BOOL fDoLoadGenKeys()
     if((g_pbServerHMACKey = pbGenHMACKey(g_pServerSK->abKey, CRYPT_KEY_SIZE_BYTES)) == NULL)
     { logwarn("Could not generate server HMAC key"); goto error_return; }
     
-    if(!fCreateANSecretKey())
+    if(!fLoadSecretKeyFile())
     { logwarn("Could not generate anode secret key"); goto error_return; }
 
     return TRUE;
@@ -114,30 +117,24 @@ static BOOL fDoLoadGenKeys()
     if(g_pbServerHMACKey) vSecureFree(g_pbServerHMACKey);
     return FALSE;
 
-}// fLoadSharedKeys()
+}// fDoLoadGenKeys()
 
 
 static void vDumpKeys()
 {
     loginfo("Keys dump...");
     
-    printf("Server shared key: \n");
-    printf("Alice: %s\n", g_pServerSK->szAlice);
-    printf("Bob  : %s\n", g_pServerSK->szBob);
-    printf("Key  : ");
+    printf("Server shared key: ");
     vPrintBytes(g_pServerSK->abKey, CRYPT_KEY_SIZE_BYTES);
-    printf("Server HMAC key: ");
+    printf("Server HMAC key  : ");
     vPrintBytes(g_pbServerHMACKey, CRYPT_KEY_SIZE_BYTES);
     
-    printf("Client shared key...\n");
-    printf("Alice: %s\n", g_pCliSharedKey->szAlice);
-    printf("Bob  : %s\n", g_pCliSharedKey->szBob);
-    printf("Key  : ");
+    printf("Client shared key:");
     vPrintBytes(g_pCliSharedKey->abKey, CRYPT_KEY_SIZE_BYTES);
-    printf("Client HMAC key: ");
+    printf("Client HMAC key  : ");
     vPrintBytes(g_pbCliHMACKey, CRYPT_KEY_SIZE_BYTES);
 
-    printf("Anode secret key: ");
+    printf("Anode secret key : ");
     vPrintBytes(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES);
     
     loginfo("END...");
@@ -145,13 +142,56 @@ static void vDumpKeys()
 }
 
 
-static BOOL fCreateANSecretKey()
+static BOOL fLoadSecretKeyFile()
 {
-    if(!fSecureAlloc(CRYPT_KEY_SIZE_BYTES, (void**)&g_pbANSecretKey))
-        return FALSE;
+    int fd = -1;
+    BOOL fFileFound = FALSE;
     
-    gcry_create_nonce(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES);
+    BYTE abKey[CRYPT_KEY_SIZE_BYTES];
+    
+    
+    if((fd = open(FILE_SECRET_KEY, O_RDONLY, 0)) == -1)
+        logwarn("%s not found. Will generate a new secret key.", FILE_SECRET_KEY);
+    else
+        fFileFound = TRUE;
+    
+    if(fFileFound)
+    {
+        if( read(fd, abKey, CRYPT_KEY_SIZE_BYTES) != CRYPT_KEY_SIZE_BYTES )
+        {
+            logerr("read() ");
+            goto error_return;
+        }
+        close(fd);
+        fd = -1;
+        
+        if(!fSecureAlloc(CRYPT_KEY_SIZE_BYTES, (void**)&g_pbANSecretKey))
+            return FALSE;
+        memcpy(g_pbANSecretKey, abKey, CRYPT_KEY_SIZE_BYTES);
+    }
+    else
+    {
+        int openMode = S_IRUSR|S_IWUSR|S_IRGRP;
+        
+        if(!fSecureAlloc(CRYPT_KEY_SIZE_BYTES, (void**)&g_pbANSecretKey))
+            return FALSE;
+    
+        gcry_create_nonce(g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES);
+        
+        // write to file
+        if((fd = open(FILE_SECRET_KEY, O_WRONLY|O_CREAT|O_TRUNC, openMode)) == -1)
+            logwarn("Could not write to %s", FILE_SECRET_KEY);
+        if( write(fd, g_pbANSecretKey, CRYPT_KEY_SIZE_BYTES) != CRYPT_KEY_SIZE_BYTES )
+            logwarn("write() ");
+        close(fd);
+        fd = -1;
+    }
+    
     return TRUE;
+    
+    error_return:
+    if(fd != -1) close(fd);
+    return FALSE;
 }
 
 

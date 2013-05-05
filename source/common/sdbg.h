@@ -13,7 +13,7 @@
 
 #define logdbg(M, ...)  fprintf(stdout, "[DEBUG] " M "\n", ##__VA_ARGS__)
 
-#define logerr(M, ...)  fprintf(stdout, "[ERROR] (errno: %s) " M "\n", clean_errno(), ##__VA_ARGS__)
+#define logerr(M, ...)  fprintf(stdout, "[ERROR] " M "(errno: %s)\n", ##__VA_ARGS__, clean_errno())
 
 #define logwarn(M, ...) fprintf(stdout, "[WARN]  " M "\n", ##__VA_ARGS__)
 

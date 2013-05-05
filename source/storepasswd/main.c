@@ -32,7 +32,6 @@
 
 // functions
 BOOL fWriteToFile(int fd, void *pvData, int dataSize);
-BOOL fReadLineFromStdin(char *pszBuffer, int nBufLen);
 void vDisplayRecords(int fd, int ftype);
 
 void vUserPasswdFile();
@@ -109,28 +108,6 @@ BOOL fWriteToFile(int fd, void *pvData, int dataSize)
     }
     return TRUE;
 
-}
-
-/**
- * 
- * @param pszBuffer
- * @param nBufLen Includes the terminating NULL character
- * @return 
- */
-BOOL fReadLineFromStdin(char *pszBuffer, int nBufLen) 
-{
-    ASSERT(pszBuffer && nBufLen > 0);
-
-    int nlen = 0;
-    char ch;
-
-    if ((ch = getchar()) != '\n')
-        ungetc(ch, stdin);
-
-    while (nlen < nBufLen && (ch = getchar()) != '\n')
-        pszBuffer[nlen++] = ch;
-    pszBuffer[nlen] = 0;
-    return TRUE;
 }
 
 
@@ -275,6 +252,12 @@ void vUserPasswdFile()
                         upData.abSalt, CRYPT_SALT_SIZE_BYTES,
                         upData.abDerivedKey, CRYPT_KEY_SIZE_BYTES))
                 { logwarn("Unable to derive passphrase!"); break; }
+                
+                printf("Username: %s\n", upData.szUsername);
+                printf("Salt: ");
+                vPrintBytes(upData.abSalt, CRYPT_SALT_SIZE_BYTES);
+                printf("Hash: ");
+                vPrintBytes(upData.abDerivedKey, CRYPT_HASH_SIZE_BYTES);
                 
                 // username:salt:hash'\n'
                 if(write(fd, upData.szUsername, 

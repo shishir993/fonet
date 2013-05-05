@@ -40,11 +40,9 @@
 #include "../common/defs.h"
 #include "../common/packet.h"
 
-
-//#define AN_CFG_FILE         "../etc/an_config.txt"             
-#define AN_CLI_SK_FILE          "../etc/an_sharedkeys.dat"         // client shared key file
+            
+#define AN_CLI_SK_FILE      "../etc/an_sharedkeys.dat"         // client shared key file
 #define AN_SERV_SK_FILE     "../etc/an_server_sharedkey.dat"   // server shared key file
-
 
 
 #endif	/* _ANINCLUDE_H */

@@ -32,9 +32,9 @@ BOOL fInitGCrypt()
       process might still be running with increased privileges and that
       the secure memory has not been intialized.  */
 
-    /* Allocate a pool of 32k secure memory.  This makes the secure memory
+    /* Allocate a pool of 128k secure memory.  This makes the secure memory
       available and also drops privileges where needed.  */
-    gcry_control (GCRYCTL_INIT_SECMEM, 32678, 0);
+    gcry_control (GCRYCTL_INIT_SECMEM, 131072, 0);
 
     /* It is now okay to let Libgcrypt complain when there was/is
       a problem with the secure memory. */
@@ -391,7 +391,7 @@ BOOL fGetHMAC(const BYTE *pbKey, int nKeySize,
  * @param nInputSize
  * @param pbOutBuf
  * @param nOutBufSize
- * @param pierr
+ * @param pierr Optional
  * @return 
  */
 static BOOL fSHA256Worker(BOOL fHMACEnable, const BYTE *pbKey,

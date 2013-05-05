@@ -6,7 +6,7 @@ extern struct in_addr g_iaServAddr;
 extern char *pszServAddrStr;
 
 static int lg_iServSocket = -1;
-static BOOL lg_abSRBuffer[SR_BUFSIZE];
+static BYTE lg_abSRBuffer[SR_BUFSIZE];
 
 
 BOOL fConnectToServer()
@@ -101,7 +101,8 @@ BOOL fSendToServer(void *pvPacket, int nPacketSize)
 
 BOOL fRecvFromServer(void *pvBuffer, int nBufSize)
 {
-    ASSERT(pvBuffer && nBufSize >= sizeof(lg_abSRBuffer));
+    ASSERT(pvBuffer);
+    ASSERT(nBufSize >= sizeof(lg_abSRBuffer));
     
     int iRetVal = 0;
     

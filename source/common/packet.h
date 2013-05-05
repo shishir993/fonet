@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "cutils.h"
 
+
 // message types
 // Client to Accessnode
 #define MSG_CA_HELLO        100
@@ -22,12 +23,15 @@
 
 // Client to Server
 #define MSG_CS_LOGIN        160
-#define MSG_CS_REQUEST      161
-#define MSG_CS_LOGOUT       162
+#define MSG_CS_ENCODE       161
+#define MSG_CS_DECODE       162
+#define MSG_CS_LOGOUT       163
 
 // Server to Client
-#define MSG_SC_ACC_TOKEN    190
-#define MSG_SC_REPLY        191
+#define MSG_SC_SESSION_KEY  190
+#define MSG_SC_OP_SUCCESS   191
+#define MSG_SC_OP_FAIL      192
+#define MSG_SC_REPLY        193
 
 
 // Accessnode to Server
@@ -65,11 +69,11 @@ typedef struct _loginCred {
 
 
 // Unique data that is the access_token
-// This MUST be encrypted and a hmac value must be
-// tagged along with this to detect tampering.
-typedef struct _anUniqData {
-    BYTE abHmacCSIP[CRYPT_HASH_SIZE_BYTES];
-    struct timeval tvGenerated;
-}AN_UNIQDATA;
+// HMAC ensures tamper detection
+typedef struct _atoken {
+    BYTE abHmacCSIPTime[CRYPT_HASH_SIZE_BYTES]; // hmac(clientIP+serverIP+timeval)
+    struct timeval tvExpiry;                    // expires 24hrs after issue
+}ATOKEN;
+
 
 #endif // _PACKET_H

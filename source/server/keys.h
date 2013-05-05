@@ -37,8 +37,7 @@ typedef struct _unamePasswd {
 
 
 BOOL fLoadUsersFromFile(const char *pszFilepath);
-BOOL fVerifyUserGetKey(const char *pszUsername, const char *pszPassphrase,
-        BYTE **pbKeyOut);
+BOOL fVerifyUserGetKey(const char *pszUsername, const char *pszPassphrase);
 
 #endif	/* KEYS_H */
 

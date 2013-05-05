@@ -1,6 +1,5 @@
 
 #include "keys.h"
-#include "../common/base64/base64.h"
 
 #define MAX_LINE    128
 
@@ -69,11 +68,13 @@ BOOL fLoadUsersFromFile(const char *pszFilepath)
       strncpy(lg_stUsers[lg_nUsers].szUsername, psz, sizeof(lg_stUsers[lg_nUsers].szUsername));
       
       // now, salt
-      if((psz = strtok(szLine, ":")) == NULL)
+      if((psz = strtok(NULL, ":")) == NULL)
       {
           logwarn("Couldn't tokenize to find salt");
           goto error_return;
       }
+      
+      printf("Salt: %s\n", psz);
       
       if((pbSalt = unbase64(psz, strlen(psz), &nSaltLen)) == NULL)
       {
@@ -82,17 +83,25 @@ BOOL fLoadUsersFromFile(const char *pszFilepath)
       }
       
       // now, hash
-      if((psz = strtok(szLine, ":")) == NULL)
+      if((psz = strtok(NULL, "\n")) == NULL)
       {
           logwarn("Couldn't tokenize to find hash");
           goto error_return;
       }
+      
+      printf("Hash: %s\n", psz);
       
       if((pbHash = unbase64(psz, strlen(psz), &nHashLen)) == NULL)
       {
           logwarn("Could not decode hash");
           goto error_return;
       }
+      
+      printf("Username: %s\n", lg_stUsers[lg_nUsers].szUsername);
+      printf("Salt: ");
+      vPrintBytes(pbSalt, CRYPT_SALT_SIZE_BYTES);
+      printf("Hash: ");
+      vPrintBytes(pbHash, CRYPT_HASH_SIZE_BYTES);
       
       memcpy(lg_stUsers[lg_nUsers].abSalt, pbSalt, nSaltLen);
       memcpy(lg_stUsers[lg_nUsers].abDerivedKey, pbHash, nHashLen);
@@ -116,11 +125,9 @@ BOOL fLoadUsersFromFile(const char *pszFilepath)
 }
 
 
-BOOL fVerifyUserGetKey(const char *pszUsername, const char *pszPassphrase,
-        BYTE **pbKeyOut)
+BOOL fVerifyUserGetKey(const char *pszUsername, const char *pszPassphrase)
 {
     ASSERT(pszUsername && pszPassphrase);
-    ASSERT(pbKeyOut);
     
     int i = 0;
     BYTE abDerivedKey[CRYPT_KEY_SIZE_BYTES];
@@ -145,7 +152,6 @@ BOOL fVerifyUserGetKey(const char *pszUsername, const char *pszPassphrase,
     if(fCompareBytes(lg_stUsers[i].abDerivedKey, CRYPT_KEY_SIZE_BYTES,
             abDerivedKey, CRYPT_KEY_SIZE_BYTES))
     {
-        *pbKeyOut = lg_stUsers[i].abDerivedKey;
         return TRUE;
     }
     
